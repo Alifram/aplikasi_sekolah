@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/nilai_service.dart';
+import 'package:flutter/services.dart';
 
 class InputNilaiScreen extends StatefulWidget {
   final String kelasGuru;
@@ -290,10 +291,12 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    // Satu Kolom Angka Fleksibel Sesuai Checkbox Di Atas
                     TextFormField(
                       controller: _skorNilaiController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
                       decoration: InputDecoration(
                         labelText: 'Masukkan Angka Skor Nilai ${_jenisNilaiTerpilih.toUpperCase()}',
                         border: const OutlineInputBorder(),
@@ -312,7 +315,6 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Catatan Tambahan/Keterangan Guru
                     TextFormField(
                       controller: _keteranganController,
                       maxLines: 2,

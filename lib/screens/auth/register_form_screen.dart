@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
-import 'package:aplikasi_sekolah/core/services/auth_service.dart'; // <-- IMPORT SERVICE BARU
+import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 
 class RegisterFormScreen extends StatefulWidget {
   final String pembuatRole; 
@@ -18,10 +18,34 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
   final TextEditingController _namaLengkapController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _kelasController = TextEditingController();
+  final TextEditingController _kelasController = TextEditingController(); // Digunakan manual untuk akun Guru
 
   String _selectedRole = 'siswa'; 
   bool _isLoading = false;
+
+  // ===========================================================================
+  // WIDGET STATE BARU: Pilihan awal Dropdown penempatan khusus Akun Siswa
+  // ===========================================================================
+  String _selectedKelasSiswa = 'Kelas 1';
+  String _selectedAngkatanSiswa = DateTime.now().year.toString();
+
+  final List<String> _daftarKelasOpsi = [
+    'Kelas 1',
+    'Kelas 2',
+    'Kelas 3',
+    'Kelas 4',
+    'Kelas 5',
+    'Kelas 6',
+  ];
+
+  List<String> get _daftarTahunAngkatanOpsi {
+    int tahunSekarang = DateTime.now().year;
+    List<String> listTahun = [];
+    for (int i = 2023; i <= tahunSekarang; i++) {
+      listTahun.add(i.toString());
+    }
+    return listTahun;
+  }
 
   @override
   void initState() {
@@ -31,7 +55,23 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
     }
   }
 
-  // LOGIKA BARU: UI murni mengirimkan paket data ke AuthService
+  void _bersihkanFormulir() {
+    _nomorIndukController.clear();
+    _namaLengkapController.clear();
+    _emailController.clear();
+    _passwordController.clear();
+    _kelasController.clear();
+    setState(() {
+      _selectedKelasSiswa = 'Kelas 1';
+      _selectedAngkatanSiswa = DateTime.now().year.toString();
+    });
+  }
+
+  void _tampilkanNotifikasi(String pesan, Color warna) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(pesan), backgroundColor: warna),
+    );
+  }
   Future<void> _kirimDataPendaftaran() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -43,39 +83,25 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
       "email": _emailController.text.trim(),
       "password": _passwordController.text.trim(),
       "role": _selectedRole,
-      "kelas_diajar": _selectedRole == 'guru' ? _kelasController.text.trim() : null,
+      "kelas_diajar": _selectedRole == 'siswa' ? _selectedKelasSiswa.trim() : _kelasController.text.trim(),
+      "tahun_angkatan": _selectedRole == 'siswa' ? int.tryParse(_selectedAngkatanSiswa) : null,
     };
 
     final res = await AuthService.register(dataInput);
 
-    if (!mounted) return; // Pengaman Context untuk TA
+    if (!mounted) return;
 
     if (res['status'] == 'success') {
-      _tampilkanNotifikasi(res['message'] ?? 'Pendaftaran berhasil!', AppColors.primary);
+      _tampilkanNotifikasi(res['message'] ?? 'Pendaftaran akun berhasil disimpan!', AppColors.primary);
       _bersihkanFormulir();
     } else {
-      _tampilkanNotifikasi(res['message'] ?? 'Pendaftaran gagal.', Colors.red);
+      _tampilkanNotifikasi(res['message'] ?? 'Pendaftaran akun gagal dilakukan.', Colors.red);
     }
 
     if (mounted) {
       setState(() => _isLoading = false);
     }
   }
-
-  void _bersihkanFormulir() {
-    _nomorIndukController.clear();
-    _namaLengkapController.clear();
-    _emailController.clear();
-    _passwordController.clear();
-    _kelasController.clear();
-  }
-
-  void _tampilkanNotifikasi(String pesan, Color warna) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(pesan), backgroundColor: warna),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,6 +164,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                 const SizedBox(height: 20),
               ],
 
+              // 1. INPUT NOMOR INDUK (NIS / NIP)
               TextFormField(
                 controller: _nomorIndukController,
                 decoration: InputDecoration(
@@ -154,6 +181,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               ),
               const SizedBox(height: 20),
 
+              // 2. INPUT NAMA LENGKAP
               TextFormField(
                 controller: _namaLengkapController,
                 decoration: InputDecoration(
@@ -167,7 +195,8 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                     value!.isEmpty ? 'Nama lengkap wajib diisi' : null,
               ),
               const SizedBox(height: 20),
-              // INPUT EMAIL
+
+              // 3. INPUT EMAIL
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -183,7 +212,57 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // INPUT PASSWORD BAWAAN
+              if (_selectedRole == 'siswa') ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedKelasSiswa,
+                        decoration: InputDecoration(
+                          labelText: 'Tingkat Kelas',
+                          prefixIcon: const Icon(Icons.school_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        items: _daftarKelasOpsi.map((String k) {
+                          return DropdownMenuItem<String>(value: k, child: Text(k));
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedKelasSiswa = value!;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Dropdown Tahun Angkatan Masuk
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedAngkatanSiswa,
+                        decoration: InputDecoration(
+                          labelText: 'Tahun Angkatan',
+                          prefixIcon: const Icon(Icons.calendar_month_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        items: _daftarTahunAngkatanOpsi.map((String t) {
+                          return DropdownMenuItem<String>(value: t, child: Text('Angkatan $t'));
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedAngkatanSiswa = value!;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              // 4. INPUT PASSWORD ACUAN AWAL
               TextFormField(
                 controller: _passwordController,
                 decoration: InputDecoration(
@@ -198,7 +277,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // INPUT KHUSUS KELAS (Hanya muncul jika admin memilih membuat akun 'guru')
+              // 5. INPUT KELAS GURU (HANYA MUNCUL JIKA PILIH GURU KELAS)
               if (_selectedRole == 'guru') ...[
                 TextFormField(
                   controller: _kelasController,
@@ -219,13 +298,13 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
 
               const SizedBox(height: 15),
 
-              // TOMBOL SUBMIT SIMPAN DATA
+              // 6. TOMBOL SUBMIT PENDAFTARAN AKUN
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary, // Integrasi warna tema global
+                    backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

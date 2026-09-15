@@ -50,4 +50,42 @@ class AdminService {
       return {'status': 'error', 'message': 'Kesalahan jaringan: $e'};
     }
   }
+
+  static Future<Map<String, dynamic>> ubahStatusAksesAkun(String idUser, int statusBaru) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/ubah_status_akses.php'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "user_id": idUser,
+          "status_baru": statusBaru,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'status': 'error', 'message': 'Gagal merespons server (${response.statusCode})'};
+    } catch (e) {
+      return {'status': 'error', 'message': 'Terjadi gangguan jaringan: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> prosesKenaikanKelasMassal() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/naik_kelas_massal.php'),
+        headers: {"Content-Type": "application/json"},
+        // Mengirimkan body kosong karena PHP hanya membutuhkan trigger POST aman
+        body: jsonEncode({}), 
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'status': 'error', 'message': 'Gagal memproses otomatisasi server (${response.statusCode}).'};
+    } catch (e) {
+      return {'status': 'error', 'message': 'Terjadi kegagalan koneksi jaringan: $e'};
+    }
+  }
 }

@@ -21,12 +21,68 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
   bool _isLoading = true;
   String _pesanError = '';
   late String _currentKelas;
+  late int _isDeletedStatus;
 
   @override
+    @override
   void initState() {
     super.initState();
     _currentKelas = widget.userData['kelas_diajar'] ?? 'Belum Diatur';
+    _isDeletedStatus = int.tryParse(widget.userData['is_deleted'].toString()) ?? 0; 
     _panggilDataNilai();
+  }
+
+  void _konfirmasiUbahStatusAkses(BuildContext context) {
+    final int targetStatus = _isDeletedStatus == 0 ? 1 : 0;
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text(targetStatus == 1 ? 'Nonaktifkan Akses Akun?' : 'Aktifkan Kembali Akun?'),
+        content: Text(
+          targetStatus == 1
+              ? 'Apakah Anda yakin ingin memblokir hak login akun ini?\n\n🔒 Seluruh histori nilai rapor tetap tersimpan aman di database sekolah.'
+              : 'Apakah Anda yakin ingin membuka blokir akun ini?\n\n🔓 Orang tua murid akan bisa kembali login ke aplikasi untuk mencetak dokumen PDF rapor.'
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: targetStatus == 1 ? Colors.red : Colors.green.shade700,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              setState(() => _isLoading = true);
+
+              final res = await AdminService.ubahStatusAksesAkun(
+                widget.userData['id'].toString(), 
+                targetStatus
+              );
+
+              if (!mounted) return;
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(res['message'] ?? 'Proses selesai'),
+                  backgroundColor: res['status'] == 'success' ? AppColors.primary : Colors.red,
+                ),
+              );
+
+              if (res['status'] == 'success') {
+                setState(() {
+                  _isDeletedStatus = targetStatus; // Mengubah state UI secara real-time
+                  _isLoading = false;
+                });
+              } else {
+                setState(() => _isLoading = false);
+              }
+            },
+            child: Text(targetStatus == 1 ? 'Ya, Blokir' : 'Ya, Aktifkan', style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // LOGIKA BARU: Menjembatani panggilan data ke AdminService
@@ -194,6 +250,29 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                             'Email: ${user['email'] ?? '-'}',
                             style: const TextStyle(color: Colors.grey),
                           ),
+
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Text('Status Akses: ', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _isDeletedStatus == 0 ? Colors.green.shade50 : Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  _isDeletedStatus == 0 ? '● AKTIF BISA LOGIN' : '🔒 TERBLOKIR / NONAKTIF',
+                                  style: TextStyle(
+                                    color: _isDeletedStatus == 0 ? Colors.green.shade800 : Colors.red.shade800,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
                           const SizedBox(height: 6),
                           Row(
                             children: [
@@ -255,11 +334,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
               ),
               const SizedBox(height: 16),
               _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primary, // Menggunakan tema global
-                      ),
-                    )
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                   : _pesanError.isNotEmpty
                       ? Text(_pesanError, style: const TextStyle(color: Colors.red))
                       : _listNilai.isEmpty
@@ -275,9 +350,10 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                               itemCount: _listNilai.length,
                               itemBuilder: (context, index) {
                                 final nilai = _listNilai[index];
-                                double rataRata = (int.parse(nilai['nilai_tugas'].toString()) +
-                                        int.parse(nilai['nilai_uts'].toString()) +
-                                        int.parse(nilai['nilai_uas'].toString())) /
+                                // AMAN BUG: Mengantisipasi eror data kosong dari database MySQL
+                                double rataRata = ((int.tryParse(nilai['nilai_tugas'].toString()) ?? 0) +
+                                        (int.tryParse(nilai['nilai_uts'].toString()) ?? 0) +
+                                        (int.tryParse(nilai['nilai_uas'].toString()) ?? 0)) /
                                     3;
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 14),
@@ -287,13 +363,11 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                                   ),
                                   child: ExpansionTile(
                                     title: Text(
-                                      '${nilai['mata_pelajaran']}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                      '${nilai['mata_pelajaran'] ?? '-'}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                     subtitle: Text(
-                                      'Kategori: ${nilai['semester']}',
+                                      'Kategori: ${nilai['semester'] ?? '-'}',
                                       style: const TextStyle(fontSize: 12),
                                     ),
                                     trailing: Container(
@@ -318,30 +392,18 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                                             Row(
                                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                                               children: [
-                                                _buildSubNilai(
-                                                  'Tugas',
-                                                  nilai['nilai_tugas'].toString(),
-                                                ),
-                                                _buildSubNilai(
-                                                  'UTS',
-                                                  nilai['nilai_uts'].toString(),
-                                                ),
-                                                _buildSubNilai(
-                                                  'UAS',
-                                                  nilai['nilai_uas'].toString(),
-                                                ),
+                                                _buildSubNilai('Tugas', nilai['nilai_tugas'].toString()),
+                                                _buildSubNilai('UTS', nilai['nilai_uts'].toString()),
+                                                _buildSubNilai('UAS', nilai['nilai_uas'].toString()),
                                               ],
                                             ),
-                                            if (nilai['keterangan'] != null) ...[
+                                            if (nilai['keterangan'] != null && nilai['keterangan'].toString().isNotEmpty) ...[
                                               const Divider(height: 24),
                                               Align(
                                                 alignment: Alignment.centerLeft,
                                                 child: Text(
                                                   'Catatan Guru: "${nilai['keterangan']}"',
-                                                  style: const TextStyle(
-                                                    fontStyle: FontStyle.italic,
-                                                    color: Colors.grey,
-                                                  ),
+                                                  style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
                                                 ),
                                               ),
                                             ],
@@ -353,6 +415,36 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                                 );
                               },
                             ),
+                if (isAdmin && user['role'] != 'admin') ...[
+                  const SizedBox(height: 40),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: _isDeletedStatus == 0 ? Colors.red : Colors.green.shade700, 
+                          width: 1.5
+                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: Icon(
+                        _isDeletedStatus == 0 ? Icons.lock_person_rounded : Icons.lock_open_rounded, 
+                        color: _isDeletedStatus == 0 ? Colors.red : Colors.green.shade700
+                      ),
+                      label: Text(
+                        _isDeletedStatus == 0 ? 'BLOKIR HAK AKSES LOGIN' : 'AKTIFKAN KEMBALI HAK LOGIN AKUN', 
+                        style: TextStyle(
+                          color: _isDeletedStatus == 0 ? Colors.red : Colors.green.shade700, 
+                          fontWeight: FontWeight.bold, 
+                          fontSize: 14
+                        ),
+                      ),
+                      onPressed: () => _konfirmasiUbahStatusAkses(context),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                ],
             ],
           ],
         ),
