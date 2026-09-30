@@ -54,15 +54,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _navigasiBerdasarkanRole(Map<String, dynamic> dataUser) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DashboardScreen(
-          role: dataUser['role'] ?? 'siswa',
-          namaUser: dataUser['nama_lengkap'] ?? 'User',
-          extraData: dataUser, 
-        ),
-      ),
+    Navigator.pushReplacementNamed(
+      context, 
+      '/dashboard', 
+      arguments: dataUser,
     );
   }
 

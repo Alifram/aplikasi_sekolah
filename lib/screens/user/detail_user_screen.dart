@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
-import 'package:aplikasi_sekolah/core/services/admin_service.dart'; // <-- IMPORT SERVICE BARU
+import 'package:aplikasi_sekolah/core/services/admin_service.dart';
+import '../../core/services/api_service.dart';
 
 class DetailUserScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
-  final String loginRole; 
+  final String loginRole;
+  
+  // 🌟 SELIPKAN SATU BARIS BARU INI DI SINI:
+  final bool statusTemaGelap; 
 
   const DetailUserScreen({
     super.key,
     required this.userData,
     required this.loginRole,
+    required this.statusTemaGelap,
   });
 
   @override
@@ -30,6 +35,233 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
     _currentKelas = widget.userData['kelas_diajar'] ?? 'Belum Diatur';
     _isDeletedStatus = int.tryParse(widget.userData['is_deleted'].toString()) ?? 0; 
     _panggilDataNilai();
+  }
+
+  void _tampilkanDialogEditUserMasaDepan() {
+    final user = widget.userData;
+    final _formKeyEditGlobal = GlobalKey<FormState>();
+    
+    // Inisialisasi controller data riil dari database MySQL
+    final TextEditingController _namaController = TextEditingController(text: user['nama_lengkap']);
+    final TextEditingController _emailController = TextEditingController(text: user['email']);
+    final TextEditingController _passBaruController = TextEditingController();
+    
+    String _kelasTerpilihDinamis = _currentKelas ?? user['kelas_diajar'] ?? 'Kelas 1';
+    final bool isDark = widget.statusTemaGelap;
+    
+    // Palet Warna Kontras Tinggi Adaptif (WhatsApp Dark Mode style)
+    final Color warnaLatarDialog = isDark ? const Color(0xFF1C2D35) : Colors.white;
+    final Color warnaTeksUtama = isDark ? Colors.white : Colors.black87;
+    final Color warnaTeksSub = isDark ? Colors.white70 : Colors.black54;
+    final Color warnaInputBackground = isDark ? const Color(0xFF202C33) : Colors.grey.shade50;
+    final Color warnaBorderActive = isDark ? Colors.amber.shade400 : AppColors.primary;
+    final Color warnaIkonSeksi = isDark ? Colors.amber.shade400 : AppColors.primary;
+
+    Future<void> _prosesKirimKeDatabase() async {
+      final paketUpdateGlobal = {
+        "id_user": user['id'].toString(),
+        "nama_lengkap": _namaController.text.trim(),
+        "email": _emailController.text.trim(),
+        "kelas_diajar": _kelasTerpilihDinamis, 
+        "password_baru": _passBaruController.text.trim(),
+      };
+
+      final res = await ApiService.perbaruiDataPengguna(paketUpdateGlobal);
+      
+      if (!mounted) return;
+      Navigator.pop(context); // Tutup dialog utama edit informasi akun
+
+      if (res['status'] == 'success') {
+        setState(() {
+          _currentKelas = _kelasTerpilihDinamis;
+          user['nama_lengkap'] = _namaController.text.trim();
+          user['email'] = _emailController.text.trim();
+        });
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(res['status'] == 'success' ? Icons.check_circle : Icons.error, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(child: Text(res['message'] ?? 'Proses selesai.')),
+            ],
+          ),
+          backgroundColor: res['status'] == 'success' ? Colors.green : Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return AlertDialog(
+              backgroundColor: warnaLatarDialog,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: isDark ? Colors.grey.shade700 : Colors.transparent, width: 1.5),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.manage_accounts_rounded, color: warnaIkonSeksi, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Kelola Data Akun', style: TextStyle(fontWeight: FontWeight.bold, color: warnaTeksUtama, fontSize: 18)),
+                        Text('Perbarui informasi internal tata usaha sekolah', style: TextStyle(color: warnaTeksSub, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _formKeyEditGlobal,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 8),
+                      // 1. INPUT FIELD NAMA LENGKAP
+                      TextFormField(
+                        controller: _namaController,
+                        style: TextStyle(color: warnaTeksUtama),
+                        decoration: InputDecoration(
+                          labelText: 'Nama Lengkap Pengguna',
+                          labelStyle: TextStyle(color: warnaTeksSub),
+                          prefixIcon: Icon(Icons.person_outline_rounded, color: warnaIkonSeksi),
+                          fillColor: warnaInputBackground,
+                          filled: true,
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: warnaBorderActive, width: 2)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (v) => v!.isEmpty ? 'Nama tidak boleh kosong' : null,
+                      ),
+                      const SizedBox(height: 18),
+                      // 2. INPUT FIELD EMAIL RESMI
+                      TextFormField(
+                        controller: _emailController,
+                        style: TextStyle(color: warnaTeksUtama),
+                        decoration: InputDecoration(
+                          labelText: 'Alamat Email Akun',
+                          labelStyle: TextStyle(color: warnaTeksSub),
+                          prefixIcon: Icon(Icons.mail_outline_rounded, color: warnaIkonSeksi),
+                          fillColor: warnaInputBackground,
+                          filled: true,
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: warnaBorderActive, width: 2)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (v) => v!.isEmpty ? 'Email tidak boleh kosong' : null,
+                      ),
+                      const SizedBox(height: 18),
+                      // 3. DROPDOWN PINDAH TINGKAT KELAS TERINTEGRASI
+                      DropdownButtonFormField<String>(
+                        value: _kelasTerpilihDinamis,
+                        dropdownColor: warnaLatarDialog,
+                        style: TextStyle(color: warnaTeksUtama, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          labelText: user['role'] == 'guru' ? 'Mengampu Tingkat Kelas' : 'Penempatan Kelas Siswa',
+                          labelStyle: TextStyle(color: warnaTeksSub),
+                          prefixIcon: Icon(Icons.school_outlined, color: warnaIkonSeksi),
+                          fillColor: warnaInputBackground,
+                          filled: true,
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: warnaBorderActive, width: 2)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        items: ['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'].map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
+                        onChanged: (v) => setModalState(() => _kelasTerpilihDinamis = v!),
+                      ),
+                      const SizedBox(height: 18),
+                      // 4. RESET PASSWORD BARU (OPSIONAL)
+                      TextFormField(
+                        controller: _passBaruController,
+                        obscureText: true,
+                        style: TextStyle(color: warnaTeksUtama),
+                        decoration: InputDecoration(
+                          labelText: 'Password Baru (Kosongkan jika tak diubah)',
+                          labelStyle: TextStyle(color: warnaTeksSub),
+                          hintText: 'Isi hanya jika ingin mereset sandi user',
+                          hintStyle: TextStyle(fontSize: 10, color: isDark ? Colors.white38 : Colors.grey),
+                          prefixIcon: Icon(Icons.lock_reset_rounded, color: warnaIkonSeksi),
+                          fillColor: warnaInputBackground,
+                          filled: true,
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: warnaBorderActive, width: 2)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('BATAL', style: TextStyle(color: isDark ? Colors.white60 : Colors.grey, fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    if (!_formKeyEditGlobal.currentState!.validate()) return;
+                    
+                    // VALIDASI KEAMANAN KETAT: Jika admin mereset password, interupsi dengan dialog konfirmasi
+                    if (_passBaruController.text.trim().isNotEmpty) {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext contextAlert) {
+                          return AlertDialog(
+                            backgroundColor: warnaLatarDialog,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            title: const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 26),
+                                SizedBox(width: 8),
+                                Text('Konfirmasi Sandi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              ],
+                            ),
+                            content: Text(
+                              'Anda akan mereset password untuk akun ini.\nApakah Anda yakin tindakan ini sudah benar?',
+                              style: TextStyle(color: warnaTeksUtama, fontSize: 13),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(contextAlert),
+                                child: Text('BATAL', style: TextStyle(color: warnaTeksSub)),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700),
+                                onPressed: () {
+                                  Navigator.pop(contextAlert); // Tutup alert dialog konfirmasi
+                                  _prosesKirimKeDatabase(); // Jalankan fungsi pengiriman database dari Part 1
+                                },
+                                child: const Text('YA, RESET', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    } else {
+                      // Jika kolom password kosong (hanya edit nama/email biasa), langsung kirim ke server XAMPP
+                      _prosesKirimKeDatabase();
+                    }
+                  },
+                  child: const Text('SIMPAN PERUBAHAN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _konfirmasiUbahStatusAkses(BuildContext context) {
@@ -131,70 +363,20 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
     }
   }
 
-  void _bukaDialogUbahKelas() {
-    final List<String> daftarOpsiKelas = [
-      'Kelas 1',
-      'Kelas 2',
-      'Kelas 3',
-      'Kelas 4',
-      'Kelas 5',
-      'Kelas 6',
-    ];
-    String tempKelas = daftarOpsiKelas.contains(_currentKelas)
-        ? _currentKelas
-        : 'Kelas 1';
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Pindahkan Tingkat Kelas'),
-          content: DropdownButtonFormField<String>(
-            value: tempKelas, 
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.school_outlined),
-            ),
-            items: daftarOpsiKelas.map((k) {
-              return DropdownMenuItem<String>(value: k, child: Text(k));
-            }).toList(),
-            onChanged: (v) {
-              tempKelas = v!;
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary, // Menggunakan tema global
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                _prosesPindahKelas(tempKelas); 
-              },
-              child: const Text(
-                'Simpan',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
   @override
   Widget build(BuildContext context) {
     final user = widget.userData;
-    // Deteksi apakah yang membuka halaman ini adalah Admin
+    final bool isDark = widget.statusTemaGelap;
+    final Color warnaLatarLayar = isDark ? const Color(0xFF0B141A) : Colors.white;
+    final Color warnaKotakKartu = isDark ? const Color(0xFF1C2D35) : Colors.white;
+    final Color warnaBorderKartu = isDark ? Colors.grey.shade700 : Colors.grey.shade200;
+    final Color warnaTeksUtama = isDark ? Colors.white : Colors.black87;
+    final Color warnaTeksSub = isDark ? Colors.white70 : Colors.black54;
+    final Color warnaJudulSeksi = isDark ? Colors.amber.shade300 : AppColors.primary;
     bool isAdmin = widget.loginRole == 'admin';
 
     return Scaffold(
+      backgroundColor: warnaLatarLayar,
       appBar: AppBar(
         title: Text(
           'Profil ${user['role'].toString().toUpperCase()}',
@@ -203,7 +385,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: AppColors.primary, // Menggunakan tema global
+        backgroundColor: AppColors.primary,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SingleChildScrollView(
@@ -211,11 +393,12 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Detail Informasi Perangkat Akun Utama
             Card(
-              color: const Color(0xFFF8F9FA),
+              color: warnaKotakKartu,
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: warnaBorderKartu, width: 1.5),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
@@ -237,18 +420,15 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                         children: [
                           Text(
                             user['nama_lengkap'] ?? '-',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: warnaTeksUtama),
                           ),
                           Text(
                             'Nomor Induk: ${user['nomor_induk'] ?? '-'}',
-                            style: const TextStyle(color: Colors.grey),
+                            style: TextStyle(fontSize: 13, color: warnaTeksSub),
                           ),
                           Text(
                             'Email: ${user['email'] ?? '-'}',
-                            style: const TextStyle(color: Colors.grey),
+                            style: TextStyle(color: warnaTeksSub),
                           ),
 
                           const SizedBox(height: 4),
@@ -289,17 +469,27 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              // Menampilkan tombol ubah/pindah kelas khusus untuk Admin
+                              const SizedBox(width: 12),
+
                               if (isAdmin)
                                 InkWell(
-                                  onTap: _bukaDialogUbahKelas,
-                                  child: const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 4),
-                                    child: Icon(
-                                      Icons.edit_note,
-                                      color: Colors.blue,
-                                      size: 26,
+                                  onTap: _tampilkanDialogEditUserMasaDepan, // Memanggil dialog gabungan baru Part 1-6
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(Icons.edit_note_rounded, color: Colors.blue, size: 20),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'EDIT AKUN & KELAS', 
+                                          style: TextStyle(color: Colors.blue, fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),

@@ -5,15 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/informasi_service.dart';
+import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
 
 class EventScreen extends StatefulWidget {
   final String namaUser;
   final String roleUser;
+  final String? kelasUser;
 
   const EventScreen({
     super.key,
     required this.namaUser,
     required this.roleUser,
+    this.kelasUser,
   });
 
   @override
@@ -48,16 +51,25 @@ class _EventScreenState extends State<EventScreen> {
 
   // LOGIKA BARU: Menjembatani panggilan data ke InformasiService
   Future<void> _panggilDataAcara() async {
-    final res = await InformasiService.ambilAcara();
+    final res = await DashboardService.ambilAcaraTerbaru();
+    
     if (mounted) {
       setState(() {
         if (res['status'] == 'success') {
-          _listEvents = res['data'] ?? [];
-        }
+          // 1. Tampung data mentah dari server MySQL
+          List<dynamic> dataMentah = res['data'] ?? [];
+          
+          // 2. 🌟 SINKRONISASI AKTIF: Panggil filter agar garis kuning hilang total
+          _jalankanFilterBeritaSekolah(dataMentah); 
+      } else {
+        // BYPASS AMAN: Mencetak log error ke terminal debugging tanpa crash layar
+        debugPrint(res['message'] ?? 'Gagal memuat info pengumuman.');
+      }
         _isLoading = false;
       });
     }
   }
+
 
   // Fungsi kamera HP tetap berada di file UI karena urusan hardware tampilan
   Future<void> _pilihSumberFoto(ImageSource source) async {
@@ -275,6 +287,34 @@ class _EventScreenState extends State<EventScreen> {
       },
     );
   }
+
+    // LOGIKA DINAMIS: Menyaring pengumuman agar otomatis melekat pada ruang kelas fiskal
+  void _jalankanFilterBeritaSekolah(List<dynamic> semuaBerita) {
+    setState(() {
+      // Jika yang login adalah ADMIN, bypass saringan agar bisa memantau semua berita
+      if (widget.roleUser.toLowerCase().trim() == 'admin') {
+        _listEvents = semuaBerita;
+        return;
+      }
+
+      // Jika yang login adalah GURU atau SISWA, lakukan penyaringan ketat
+      _listEvents = semuaBerita.where((ev) {
+        final targetBerita = ev['target_kelas'].toString().trim().toLowerCase();
+        
+        // Mengambil status kelas aktif terbaru dari data login pengguna
+        final kelasAktifUser = (widget.kelasUser ?? 'Belum Diatur').toString().trim().toLowerCase();
+
+        // Kondisi A: Jika pengumuman diset global, semua kelas wajib bisa melihat
+        if (targetBerita == 'semua kelas' || targetBerita == 'semua') {
+          return true;
+        }
+
+        // Kondisi B: Berita hanya muncul jika target_kelas cocok dengan kelas aktif pengguna saat ini
+        return targetBerita == kelasAktifUser;
+      }).toList();
+    });
+  }
+
   // LOGIKA TA AMAN: Panggilan HTTP dikontrol agar tidak memicu infinite loop saat modal di-rebuild
   void _bukaKolomKomentar(String eventId) {
     final TextEditingController komentarController = TextEditingController();

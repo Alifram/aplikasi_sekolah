@@ -40,11 +40,11 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
 
   List<String> get _daftarTahunAngkatanOpsi {
     int tahunSekarang = DateTime.now().year;
-    List<String> listTahun = [];
-    for (int i = 2023; i <= tahunSekarang; i++) {
-      listTahun.add(i.toString());
+    List<String> opsi = [];
+    for (int i = 2023; i <= tahunSekarang + 5; i++) {
+      opsi.add(i.toString());
     }
-    return listTahun;
+    return opsi;
   }
 
   @override
@@ -83,7 +83,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
       "email": _emailController.text.trim(),
       "password": _passwordController.text.trim(),
       "role": _selectedRole,
-      "kelas_diajar": _selectedRole == 'siswa' ? _selectedKelasSiswa.trim() : _kelasController.text.trim(),
+      "kelas_diajar": _selectedKelasSiswa.trim(),
       "tahun_angkatan": _selectedRole == 'siswa' ? int.tryParse(_selectedAngkatanSiswa) : null,
     };
 
@@ -104,35 +104,36 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
   }
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Buat Akun Baru',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppColors.primary, // Tema Global
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SingleChildScrollView(
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final Color warnaLatarLayar = isDark ? const Color(0xFF0B141A) : Colors.white;
+    final Color warnaTeksUtama = isDark ? Colors.amber.shade300 : AppColors.primary;
+    final Color warnaTeksSub = isDark ? Colors.white70 : Colors.black54;
+
+    return Container(
+      color: warnaLatarLayar,
+      height: double.infinity,
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Formulir Registrasi Internal',
                 style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary, // Tema Global
+                  fontSize: 20, 
+                  fontWeight: FontWeight.bold, 
+                  color: warnaTeksUtama,
                 ),
               ),
-              const Text(
+              const SizedBox(height: 4),
+              Text(
                 'Daftarkan pengguna baru ke dalam sistem database sekolah',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(color: warnaTeksSub, fontSize: 13),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
 
               if (widget.pembuatRole == 'admin') ...[
                 const Text(
@@ -164,7 +165,6 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                 const SizedBox(height: 20),
               ],
 
-              // 1. INPUT NOMOR INDUK (NIS / NIP)
               TextFormField(
                 controller: _nomorIndukController,
                 decoration: InputDecoration(
@@ -181,7 +181,6 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 2. INPUT NAMA LENGKAP
               TextFormField(
                 controller: _namaLengkapController,
                 decoration: InputDecoration(
@@ -196,7 +195,6 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 3. INPUT EMAIL
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -236,7 +234,6 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    // Dropdown Tahun Angkatan Masuk
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         value: _selectedAngkatanSiswa,
@@ -262,7 +259,6 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                 const SizedBox(height: 20),
               ],
 
-              // 4. INPUT PASSWORD ACUAN AWAL
               TextFormField(
                 controller: _passwordController,
                 decoration: InputDecoration(
@@ -277,28 +273,30 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 5. INPUT KELAS GURU (HANYA MUNCUL JIKA PILIH GURU KELAS)
               if (_selectedRole == 'guru') ...[
-                TextFormField(
-                  controller: _kelasController,
+                DropdownButtonFormField<String>(
+                  value: _selectedKelasSiswa, 
                   decoration: InputDecoration(
-                    labelText: 'Kelas Yang Diajar (Contoh: Kelas 3A)',
+                    labelText: 'Mengampu di Tingkat Kelas',
                     prefixIcon: const Icon(Icons.meeting_room_outlined),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  validator: (value) =>
-                      _selectedRole == 'guru' && value!.isEmpty
-                      ? 'Kelas wajib ditentukan'
-                      : null,
+                  items: _daftarKelasOpsi.map((String k) {
+                    return DropdownMenuItem<String>(value: k, child: Text(k));
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedKelasSiswa = value!;
+                    });
+                  },
                 ),
                 const SizedBox(height: 20),
               ],
 
               const SizedBox(height: 15),
 
-              // 6. TOMBOL SUBMIT PENDAFTARAN AKUN
               SizedBox(
                 width: double.infinity,
                 height: 52,

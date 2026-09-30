@@ -6,11 +6,13 @@ import 'package:aplikasi_sekolah/core/services/admin_service.dart';
 class PantauDataScreen extends StatefulWidget {
   final String? filterKelasOtomatis;
   final String? filterAngkatanOtomatis;
+  final bool statusTemaGelap;
 
   const PantauDataScreen({
     super.key, 
     this.filterKelasOtomatis, 
     this.filterAngkatanOtomatis,
+    required this.statusTemaGelap,
   });
 
   @override
@@ -53,31 +55,32 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
       _jalankanFilterPencarian();
     }
   }
-      void _jalankanFilterPencarian() {
+
+  void _jalankanFilterPencarian() {
     setState(() {
       _filteredUsers = _allUsers.where((user) {
-        final nama = user['nama_lengkap'].toString().toLowerCase();
-        final nomorInduk = user['nomor_induk'].toString().toLowerCase();
-        final role = user['role'].toString().toLowerCase();
-        final kelasUser = user['kelas_diajar']?.toString().trim().toLowerCase() ?? '';
+        final nama = user['nama_lengkap'].toString().toLowerCase().trim();
+        final nomorInduk = user['nomor_induk'].toString().toLowerCase().trim();
+        final role = user['role'].toString().toLowerCase().trim();
+        final kelasUser = user['kelas_diajar']?.toString().toLowerCase().trim() ?? '';
         final angkatanUser = user['tahun_angkatan']?.toString().trim() ?? '';
-        final cocokKeyword = nama.contains(_searchQuery.toLowerCase()) ||
-            nomorInduk.contains(_searchQuery.toLowerCase());
+        final cocokKeyword = nama.contains(_searchQuery.toLowerCase().trim()) ||
+            nomorInduk.contains(_searchQuery.toLowerCase().trim());
         bool cocokRole = (_selectedFilterRole == 'semua') ? true : (role == _selectedFilterRole);
         bool cocokAngkatan = true;
         if (_selectedFilterAngkatan != 'Semua Angkatan') {
           if (role == 'siswa') {
-            cocokAngkatan = (angkatanUser == _selectedFilterAngkatan);
+            cocokAngkatan = (angkatanUser == _selectedFilterAngkatan.trim());
           } else {
-            cocokAngkatan = true; 
+            cocokAngkatan = true;
           }
         }
         bool cocokKelasOtomatis = true;
         if (widget.filterKelasOtomatis != null) {
-          final String targetKelas = widget.filterKelasOtomatis!.trim().toLowerCase();
+          final String targetKelas = widget.filterKelasOtomatis!.toLowerCase().trim();
           
           if (role == 'admin') {
-            cocokKelasOtomatis = false; 
+            cocokKelasOtomatis = false;
           } else if (role == 'guru') {
             cocokKelasOtomatis = kelasUser.contains(targetKelas);
           } else if (role == 'siswa') {
@@ -151,35 +154,45 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
     return Colors.green.shade700;
   }
 
-  Widget _buildAreaFilterDanPencarian() {
+    Widget _buildAreaFilterDanPencarian() {
+    final bool isDark = widget.statusTemaGelap; 
+    final Color warnaLatarFilter = isDark ? const Color(0xFF111B21) : AppColors.primary.withOpacity(0.05);
+    final Color warnaInputPencarian = isDark ? const Color(0xFF202C33) : Colors.white;
+    final Color warnaTeksInput = isDark ? Colors.white : Colors.black87;
+    final Color warnaTeksPetunjuk = isDark ? Colors.amber.shade300 : AppColors.primary;
+    final Color warnaBorderDropdown = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
+
     return Container(
       padding: const EdgeInsets.all(16),
-      color: AppColors.primary.withValues(alpha: 0.05),
+      color: warnaLatarFilter,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.filterKelasOtomatis != null) ...[
             Row(
               children: [
-                const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.primary),
+                Icon(Icons.info_outline_rounded, size: 14, color: warnaTeksPetunjuk),
                 const SizedBox(width: 6),
                 Text(
                   'Mengunci Penghuni: ${widget.filterKelasOtomatis} (${_selectedFilterAngkatan})',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: warnaTeksPetunjuk),
                 ),
               ],
             ),
             const SizedBox(height: 10),
           ],
+          
           TextField(
             onChanged: (value) {
               _searchQuery = value;
               _jalankanFilterPencarian();
             },
+            style: TextStyle(color: warnaTeksInput),
             decoration: InputDecoration(
               hintText: 'Cari berdasarkan nama atau nomor induk...',
-              prefixIcon: const Icon(Icons.search, color: AppColors.primary),
-              fillColor: Colors.white,
+              hintStyle: TextStyle(color: isDark ? Colors.white60 : Colors.grey),
+              prefixIcon: Icon(Icons.search, color: isDark ? Colors.amber.shade400 : AppColors.primary),
+              fillColor: warnaInputPencarian,
               filled: true,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -189,30 +202,33 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  _buildFilterChip('semua', 'Semua'),
+                  _buildFilterChip('semua', 'Semua', isDark),
                   const SizedBox(width: 6),
-                  _buildFilterChip('guru', 'Guru'),
+                  _buildFilterChip('guru', 'Guru', isDark),
                   const SizedBox(width: 6),
-                  _buildFilterChip('siswa', 'Siswa'),
+                  _buildFilterChip('siswa', 'Siswa', isDark),
                 ],
               ),
+              
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: warnaInputPencarian,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: warnaBorderDropdown),
                 ),
                 child: DropdownButton<String>(
                   value: _selectedFilterAngkatan,
                   underline: const SizedBox(),
-                  icon: const Icon(Icons.filter_list_alt, size: 16, color: AppColors.primary),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                  dropdownColor: warnaInputPencarian, 
+                  icon: Icon(Icons.filter_list_alt, size: 16, color: isDark ? Colors.amber : AppColors.primary),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: warnaTeksInput),
                   items: _opsiFilterAngkatan.map((String val) {
                     return DropdownMenuItem<String>(
                       value: val,
@@ -236,14 +252,17 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
     );
   }
 
-  Widget _buildFilterChip(String roleType, String label) {
+  Widget _buildFilterChip(String roleType, String label, bool isDark) {
     final bool isSelected = _selectedFilterRole == roleType;
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
-      selectedColor: AppColors.primary,
+      selectedColor: isDark ? Colors.amber.shade600 : AppColors.primary,
+      backgroundColor: isDark ? const Color(0xFF202C33) : Colors.grey.shade200,
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.black87,
+        color: isSelected 
+            ? Colors.black 
+            : (isDark ? Colors.white : Colors.black87),
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
       onSelected: (bool selected) {
@@ -303,6 +322,8 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
                                           builder: (context) => DetailUserScreen(
                                             userData: user,
                                             loginRole: 'admin',
+                                            // 🌟 SINKRONISASI DINAMIS TIMBAL BALIK
+                                            statusTemaGelap: widget.statusTemaGelap, 
                                           ),
                                         ),
                                       );

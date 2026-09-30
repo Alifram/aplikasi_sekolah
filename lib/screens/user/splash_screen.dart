@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <-- 1. Tambah import ini
+import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
-import '../dashboard/dashboard_screen.dart'; // <-- 2. Tambah import dashboard untuk navigasi langsung
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -24,45 +23,36 @@ class _SplashScreenState extends State<_SplashScreenStateful> {
   @override
   void initState() {
     super.initState();
-    _periksaSesiLoginAplikasi(); // <-- 3. Picu fungsi pengecekan sesi otomatis
+    _periksaSesiLoginAplikasi();
   }
 
-  // LOGIKA UTAMA: Membaca memori lokal HP saat aplikasi pertama kali dibuka
   Future<void> _periksaSesiLoginAplikasi() async {
     final prefs = await SharedPreferences.getInstance();
     final bool isLogin = prefs.getBool('is_login') ?? false;
 
-    // Menunggu jeda estetika splash screen selama 3 detik
     await Future.delayed(const Duration(seconds: 3));
 
-    if (!mounted) return; // Pengaman context asinkronus
+    if (!mounted) return; 
 
-    if (isLogin) {
-      // AMAN: Jika user sudah login sebelumnya, tarik data profil lama dan lompat langsung ke Dashboard
+        if (isLogin) {
       final String userId = prefs.getString('user_id') ?? '';
       final String nomorInduk = prefs.getString('nomor_induk') ?? '';
       final String namaLengkap = prefs.getString('nama_lengkap') ?? 'Pengguna';
       final String role = prefs.getString('role') ?? 'siswa';
       final String kelasDiajar = prefs.getString('kelas_diajar') ?? 'Belum Diatur';
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DashboardScreen(
-            role: role,
-            namaUser: namaLengkap,
-            extraData: {
-              "id": userId,
-              "nomor_induk": nomorInduk,
-              "nama_lengkap": namaLengkap,
-              "role": role,
-              "kelas_diajar": kelasDiajar,
-            },
-          ),
-        ),
+      Navigator.pushReplacementNamed(
+        context, 
+        '/dashboard',
+        arguments: {
+          "id": userId,
+          "nomor_induk": nomorInduk,
+          "nama_lengkap": namaLengkap,
+          "role": role,
+          "kelas_diajar": kelasDiajar,
+        },
       );
     } else {
-      // Jika data sesi kosong, arahkan ke Onboarding awal seperti biasa
       Navigator.pushReplacementNamed(context, '/onboarding');
     }
   }

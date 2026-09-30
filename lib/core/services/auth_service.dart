@@ -67,6 +67,19 @@ class AuthService {
     }
   }
 
+  static Future<Map<String, dynamic>> gantiPassword(Map<String, dynamic> dataInput) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/change_password.php'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(dataInput),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {"status": "error", "message": "Kesalahan koneksi sistem: $e"};
+    }
+  }
+
   static Future<bool> logout() async {
     final prefs = await SharedPreferences.getInstance();
     return await prefs.clear();

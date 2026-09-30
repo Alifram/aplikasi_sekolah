@@ -72,11 +72,13 @@ class QuickActionBanner extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const PantauDataScreen(),
+                    builder: (context) => PantauDataScreen(
+                      statusTemaGelap: false,
+                    ),
                   ),
                 );
               } else {
-                onNavigateToTab(2); // Mengubah tab indeks navigasi utama
+                onNavigateToTab(2);
               }
             },
             child: const Text(
