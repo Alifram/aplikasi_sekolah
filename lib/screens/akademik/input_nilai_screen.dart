@@ -44,6 +44,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
     'Kelas 4 - Semester 1', 'Kelas 4 - Semester 2', 'Kelas 5 - Semester 1',
     'Kelas 5 - Semester 2', 'Kelas 6 - Semester 1', 'Kelas 6 - Semester 2',
   ];
+
   @override
   void initState() {
     super.initState();
@@ -64,7 +65,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
     }
   }
 
-  // Mengirimkan data inputan guru ke NilaiService
+  // Mengirimkan data inputan guru ke NilaiService yang sudah diotomatisasi secara nyata
   Future<void> _simpanNilaiKeDatabase() async {
     if (!_formKey.currentState!.validate() || _selectedSiswaId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -78,10 +79,31 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
 
     setState(() => _isSubmitting = true);
 
+    // 🌟 1. Cari data objek murid terpilih secara internal untuk diekstrak angkatannya
+    final siswaTerpilih = _listSiswa.firstWhere(
+      (s) => s['id'].toString() == _selectedSiswaId,
+      orElse: () => null,
+    );
+
+    // Fallback default tahun jika data terdeteksi kosong di database user
+    String angkatanOtomatis = '2026';
+    if (siswaTerpilih != null && siswaTerpilih['tahun_angkatan'] != null) {
+      angkatanOtomatis = siswaTerpilih['tahun_angkatan'].toString();
+    }
+
+    // 🌟 2. Memotong format string: 'Kelas 1 - Semester 1' -> diambil 'Kelas 1'
+    String kelasOtomatis = _selectedSemesterFormat.split(' - ').first;
+
+    // 🌟 3. Memotong format string: 'Kelas 1 - Semester 1' -> diambil 'Semester 1'
+    String semesterOtomatis = _selectedSemesterFormat.split(' - ').last;
+
+    // 🌟 4. Paket kiriman JSON lengkap dengan data Snapshot riwayat abadi
     final dataInput = {
       "siswa_id": _selectedSiswaId,
       "guru_id": widget.idGuru,
-      "semester": _selectedSemesterFormat,
+      "semester": semesterOtomatis,
+      "kelas": kelasOtomatis,
+      "tahun_angkatan": angkatanOtomatis,
       "mata_pelajaran": _selectedMapel,
       "jenis_nilai": _jenisNilaiTerpilih,
       "skor_nilai": _skorNilaiController.text.trim(),
@@ -120,6 +142,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
       _jenisNilaiTerpilih = 'tugas';
     });
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,6 +218,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                       onChanged: (v) => setState(() => _selectedSiswaId = v),
                     ),
                     const SizedBox(height: 16),
+
                     // Dropdown Kombinasi Format Kelas & Semester
                     DropdownButtonFormField<String>(
                       value: _selectedSemesterFormat,
@@ -325,7 +349,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                     ),
                     const SizedBox(height: 28),
 
-                    // Tombol Simpan Nilai Rapor
+                    // Tombol Simpan Nilai Rapor Terintegrasi State
                     SizedBox(
                       width: double.infinity,
                       height: 52,

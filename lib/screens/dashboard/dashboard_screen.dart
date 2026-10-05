@@ -3,8 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
-
-// Import Screens Akademik Terkait
+import 'package:aplikasi_sekolah/core/services/api_service.dart';
+import '../akademik/manajemen_jadwal_screen.dart';
 import '../akademik/kelas_screen.dart';
 import '../akademik/input_nilai_screen.dart';
 import '../akademik/rapor_siswa_screen.dart';
@@ -31,16 +31,19 @@ class DashboardScreen extends StatefulWidget {
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
+
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
   bool _isStatistikLoading = true;
   bool _isEventsLoading = true;
-  bool _isDarkMode = false; 
 
-  
   Map<String, dynamic> _dataStatistik = {};
   List<dynamic> _listEvents = [];
   String _angkatanTerpilih = DateTime.now().year.toString(); 
+  
+  int _totalSiswa = 0;
+  int _totalGuru = 0;
+  int _totalPengumuman = 0;
   
   List<String> get _daftarOpsiAngkatan {
     int tahunSekarang = DateTime.now().year;
@@ -61,14 +64,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final resStat = await DashboardService.ambilStatistikBerdasarkanAngkatan(_angkatanTerpilih);
       final resEvent = await DashboardService.ambilAcaraTerbaru();
+      final resRingkasan = await ApiService.ambilRingkasanDashboard();
       
       if (mounted) {
         setState(() {
-          if (resStat['status'] == 'success') {
-            _dataStatistik = resStat['data'] ?? {};
-          }
-          if (resEvent['status'] == 'success') {
-            _listEvents = resEvent['data'] ?? [];
+          if (resStat['status'] == 'success') _dataStatistik = resStat['data'] ?? {};
+          if (resEvent['status'] == 'success') _listEvents = resEvent['data'] ?? [];
+          if (resRingkasan['status'] == 'success') {
+            _totalSiswa = int.tryParse(resRingkasan['total_siswa'].toString()) ?? 0;
+            _totalGuru = int.tryParse(resRingkasan['total_guru'].toString()) ?? 0;
+            _totalPengumuman = int.tryParse(resRingkasan['total_pengumuman'].toString()) ?? 0;
           }
           _isStatistikLoading = false;
           _isEventsLoading = false;
@@ -83,7 +88,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
   }
-
   void _tampilkanDialogGantiPassword() {
     final TextEditingController _passLamaController = TextEditingController();
     final TextEditingController _passBaruController = TextEditingController();
@@ -148,18 +152,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onPressed: () async {
                 if (!_formKeyPassword.currentState!.validate()) return;
                 
-                // Paket data yang akan dikirim ke API backend PHP
                 final dataKunci = {
                   "id_user": widget.extraData['id'].toString(),
                   "password_lama": _passLamaController.text.trim(),
                   "password_baru": _passBaruController.text.trim(),
                 };
 
-                // Panggil layanan auth service untuk menembak data ke database
                 final res = await AuthService.gantiPassword(dataKunci);
-                
                 if (!mounted) return;
-                Navigator.pop(context); // Tutup dialog setelah aksi selesai
+                Navigator.pop(context);
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -175,131 +176,272 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
     );
   }
-
   Widget _buildHalamanHomeUtama() {
     final Color warnaLatarBelakang = widget.statusTemaGelap ? const Color(0xFF0B141A) : Colors.white;
-    final Color warnaKotakKartu = widget.statusTemaGelap ? const Color(0xFF111B21) : Colors.white;
+    final Color warnaKotakKartu = widget.statusTemaGelap ? const Color(0xFF1C2D35) : Colors.white;
     final Color warnaTeksUtama = widget.statusTemaGelap ? Colors.white : Colors.black87;
     final Color warnaTeksSub = widget.statusTemaGelap ? Colors.white70 : Colors.black54;
     final Color warnaPinggiran = widget.statusTemaGelap ? Colors.grey.shade800 : Colors.grey.shade200;
 
     return Container(
       color: warnaLatarBelakang,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Spanduk Selamat Datang Utama
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Selamat Datang,', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
-                  const SizedBox(height: 4),
-                  Text(widget.namaUser, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                  Text(widget.role.toUpperCase(), style: TextStyle(color: Colors.amber.shade300, fontSize: 12, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: widget.statusTemaGelap ? const Color(0xFF182229) : Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: widget.statusTemaGelap ? Colors.grey.shade800 : Colors.amber.shade200),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.stars_rounded, color: Colors.amber, size: 30),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Sistem Akademik MIM Pasir Lor Aktif & Terintegrasi Cloud Server',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 13, 
-                        color: widget.statusTemaGelap ? Colors.amber.shade200 : Colors.brown
+      child: RefreshIndicator(
+        onRefresh: _panggilDataAwal,
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // HEADER AKUN USER GRADIENT PREMIUM
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: widget.statusTemaGelap 
+                        ? [const Color(0xFF128C7E), const Color(0xFF075E54)]
+                        : [AppColors.primary, AppColors.primary.withOpacity(0.85)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Selamat Datang,', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13)),
+                        const SizedBox(height: 4),
+                        Text(widget.namaUser, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        widget.role.toUpperCase(), 
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
-            
-            Text(
-              'Pengumuman & Berita',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: widget.statusTemaGelap ? Colors.white : AppColors.primary),
-            ),
-            const SizedBox(height: 14),
-            
-            if (_isEventsLoading)
-              const Center(child: CircularProgressIndicator(color: AppColors.primary))
-            else if (_listEvents.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(
-                    'Belum ada pengumuman terbaru minggu ini.',
-                    style: TextStyle(color: warnaTeksSub, fontStyle: FontStyle.italic),
-                  ),
+                  ],
                 ),
-              )
-            else
-              ListView.builder(
+              ),
+              const SizedBox(height: 24),
+              
+              Text(
+                'Fitur Aplikasi',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: warnaTeksUtama, letterSpacing: 0.5),
+              ),
+              const SizedBox(height: 16),
+              GridView.count(
+                crossAxisCount: 4,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _listEvents.length,
-                itemBuilder: (context, index) {
-                  final ev = _listEvents[index];
-                  return Card(
-                    color: warnaKotakKartu, // Kotak abu-abu gelap khas WhatsApp
-                    margin: const EdgeInsets.only(bottom: 16),
-                    elevation: 0.5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: warnaPinggiran),
-                    ),
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Colors.amber,
-                        child: Icon(Icons.campaign_rounded, color: Colors.white),
-                      ),
-                      // PERBAIKAN UTAMA: Memaksa judul dan deskripsi berita memancarkan warna putih terang kontras tinggi
-                      title: Text(
-                        ev['judul_event'] ?? '-', 
-                        style: TextStyle(fontWeight: FontWeight.bold, color: warnaTeksUtama),
-                      ),
-                      subtitle: Text(
-                        'Target: ${ev['target_kelas'] ?? 'Semua'} \n${ev['deskripsi_event'] ?? '-'}', 
-                        style: TextStyle(fontSize: 12, color: warnaTeksSub),
-                      ),
-                      isThreeLine: true,
-                    ),
-                  );
-                },
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.85,
+                children: [
+                  // --- KONTROL GRID MENU KHUSUS ADMIN ---
+                  if (widget.role == 'admin') ...[
+                    _buildItemMenuBulat('Registrasi', Icons.person_add_alt_1_rounded, Colors.red, () {
+                      setState(() => _currentIndex = 2);
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Data Kelas', Icons.grid_view_rounded, Colors.blue, () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const KelasScreen(kelasSiswa: '')));
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Statistik', Icons.bar_chart_rounded, Colors.green, () {
+                      setState(() => _currentIndex = 1);
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Buat Event', Icons.campaign_rounded, Colors.amber.shade800, () {
+                      setState(() => _currentIndex = 3);
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    // 🌟 TOMBOL MENU JADWAL BARU: Menggantikan Profil & Sandi lama di halaman utama Admin
+                    _buildItemMenuBulat('Jadwal', Icons.edit_calendar_rounded, Colors.teal, () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ManajemenJadwalScreen(statusTemaGelap: widget.statusTemaGelap)),
+                      );
+                    }, warnaKotakKartu, warnaTeksUtama),
+                  ],
+
+                  // --- KONTROL GRID MENU KHUSUS GURU ---
+                  if (widget.role == 'guru') ...[
+                    _buildItemMenuBulat('Input Nilai', Icons.assignment_rounded, Colors.red, () {
+                      setState(() => _currentIndex = 2);
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Presensi', Icons.fact_check_rounded, Colors.blue, () {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur Presensi segera hadir!')));
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Statistik', Icons.analytics_rounded, Colors.green, () {
+                      setState(() => _currentIndex = 1);
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Jadwal Guru', Icons.calendar_month_rounded, Colors.teal, () {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Menampilkan Jadwal Mengajar Guru...')));
+                    }, warnaKotakKartu, warnaTeksUtama),
+                  ],
+
+                  // --- KONTROL GRID MENU KHUSUS SISWA ---
+                  if (widget.role == 'siswa') ...[
+                    _buildItemMenuBulat('Rapor Saya', Icons.menu_book_rounded, Colors.red, () {
+                      setState(() => _currentIndex = 1);
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Presensi', Icons.co_present_rounded, Colors.blue, () {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur Riwayat Absensi segera hadir!')));
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Info MIM', Icons.notifications_active_rounded, Colors.amber.shade800, () {
+                      setState(() => _currentIndex = 3);
+                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Jadwal Pelajaran', Icons.calendar_today_rounded, Colors.teal, () {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Menampilkan Jadwal Pelajaran Kelas...')));
+                    }, warnaKotakKartu, warnaTeksUtama),
+                  ],
+                ],
               ),
-          ],
+              const SizedBox(height: 32),
+              // =========================================================================
+              // SEKSI BERITA MADRASAH BANNER HORIZONTAL SLIDER BANNER (SINKRON DATA LIVE)
+              // =========================================================================
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Informasi & Berita Madrasah',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: warnaTeksUtama, letterSpacing: 0.5),
+                  ),
+                  InkWell(
+                    onTap: () => setState(() => _currentIndex = 3),
+                    child: const Text(
+                      'Lihat Semua',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              if (_isEventsLoading)
+                const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              else if (_listEvents.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: warnaKotakKartu,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: warnaPinggiran),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Belum ada data berita atau pengumuman aktif.',
+                      style: TextStyle(fontStyle: FontStyle.italic, color: warnaTeksSub, fontSize: 13),
+                    ),
+                  ),
+                )
+              else
+                // 🌟 HORIZONTAL EVENT BANNER SLIDER BERGAMBAR UTUH 
+                SizedBox(
+                  height: 220, 
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _listEvents.length,
+                    itemBuilder: (context, index) {
+                      final ev = _listEvents[index];
+                      return Container(
+                        width: MediaQuery.of(context).size.width * 0.82,
+                        margin: const EdgeInsets.only(right: 16),
+                        decoration: BoxDecoration(
+                          color: warnaKotakKartu,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: warnaPinggiran, width: 1.2),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => setState(() => _currentIndex = 3),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                                                            // FOTO COVER SPANDUK BERITA VISUAL
+                              Expanded(
+                                flex: 5,
+                                child: Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade300,
+                                    image: DecorationImage(
+                                      image: NetworkImage(
+                                        (ev['gambar_url'] != null && ev['gambar_url'].toString().isNotEmpty)
+                                            ? (ev['gambar_url'].toString().startsWith('http')
+                                                ? ev['gambar_url'].toString()
+                                                : 'http://localhost/api_sekolah/uploads/${ev['gambar_url']}') // 🌟 SESUAIKAN dengan folder simpan gambar XAMPP Anda jika berbeda
+                                            : 'https://unsplash.com',
+                                      ),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    alignment: Alignment.topLeft,
+                                    color: Colors.black.withOpacity(0.2), 
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(color: Colors.amber.shade800, borderRadius: BorderRadius.circular(6)),
+                                      child: Text(
+                                        'Target: ${ev['target_kelas'] ?? 'Semua Kelas'}',
+                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // ISI KONTEN TEKS JUDUL & KETERANGAN BERITA
+                              Expanded(
+                                flex: 4,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        ev['judul_event'] ?? ev['judul'] ?? '-',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(fontWeight: FontWeight.bold, color: warnaTeksUtama, fontSize: 13),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        ev['deskripsi_event'] ?? ev['deskripsi'] ?? ev['isi'] ?? '-',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(color: warnaTeksSub, fontSize: 11, height: 1.3),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
   }
 
-    // TAB STATISTIK: Diagram Rerata Longitudinal Adaptif Real Dark Mode
+  // Halaman Seksi Pelacakan Diagram Batang Rerata Lintas Kelas
   Widget _buildSeksiStatistikAdmin() {
-    // Definisi Warna Kontras Rendah-Stres Ramah Mata
     final Color warnaLatarBelakang = widget.statusTemaGelap ? const Color(0xFF0B141A) : Colors.white;
-    final Color warnaKotakKartu = widget.statusTemaGelap ? const Color(0xFF111B21) : Colors.white;
+    final Color warnaKotakKartu = widget.statusTemaGelap ? const Color(0xFF1C2D35) : Colors.white;
     final Color warnaTeksUtama = widget.statusTemaGelap ? Colors.white : Colors.black87;
     final Color warnaTeksSub = widget.statusTemaGelap ? Colors.white70 : Colors.black54;
     final Color warnaTeksMuted = widget.statusTemaGelap ? Colors.grey.shade400 : Colors.grey;
@@ -307,7 +449,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final Color warnaLatarDropdown = widget.statusTemaGelap ? const Color(0xFF182229) : Colors.white;
 
     return Container(
-      color: warnaLatarBelakang, // Memaksa latar belakang dasar mengikuti tema malam
+      color: warnaLatarBelakang,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -321,7 +463,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 16),
           
-          // Baris Pengatur Dropdown Pilihan Angkatan
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -339,7 +480,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: DropdownButton<String>(
                   value: _angkatanTerpilih,
                   underline: const SizedBox(),
-                  dropdownColor: warnaLatarDropdown, // Warna menu popup dropdown saat diklik
+                  dropdownColor: warnaLatarDropdown,
                   icon: Icon(Icons.filter_alt_rounded, size: 16, color: widget.statusTemaGelap ? Colors.amber : AppColors.primary),
                   style: TextStyle(fontWeight: FontWeight.bold, color: widget.statusTemaGelap ? Colors.amber : AppColors.primary, fontSize: 13),
                   items: _daftarOpsiAngkatan.map((String value) {
@@ -391,7 +532,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () {
-                    Navigator.push(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => PantauDataScreen(
@@ -444,11 +585,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               },
             ),
-          ],
-        ),
+        ],
+      ),
     ); 
-  } 
-
+  }
   Widget _buildGrafikBarDinamis(String label, double nilai, Color warnaBatang, Color warnaTeks) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -467,7 +607,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               height: 12, 
               width: double.infinity, 
               decoration: BoxDecoration(
-                color: widget.statusTemaGelap ? const Color(0xFF182229) : Colors.grey.shade100, 
+                color: widget.statusTemaGelap ? const Color(0xFF202C33) : Colors.grey.shade100, 
                 borderRadius: BorderRadius.circular(6),
               ),
             ),
@@ -498,7 +638,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Container(
               height: 12,
               width: double.infinity,
-              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(
+                color: widget.statusTemaGelap ? const Color(0xFF202C33) : Colors.grey.shade100, 
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
             FractionallySizedBox(
               widthFactor: (nilai / 100).clamp(0.0, 1.0),
@@ -512,14 +655,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
   }
-
-      Widget _buildHalamanProfilLengkap() {
+  Widget _buildHalamanProfilLengkap() {
     final user = widget.extraData;
     final Color warnaLatarBelakang = widget.statusTemaGelap ? const Color(0xFF0B141A) : Colors.white;
-    final Color warnaKotakKartu = widget.statusTemaGelap ? const Color(0xFF1C2D35) : Colors.white; // Abu-abu terang WhatsApp khusus kartu
+    final Color warnaKotakKartu = widget.statusTemaGelap ? const Color(0xFF1C2D35) : Colors.white; 
     final Color warnaGarisPinggir = widget.statusTemaGelap ? Colors.grey.shade700 : Colors.grey.shade200;
     
-    // Teks dipaksa putih murni / kuning emas kontras agar tidak menyamar di layar gelap
     final Color warnaTeksNama = widget.statusTemaGelap ? Colors.white : Colors.black87;
     final Color warnaTeksLabel = widget.statusTemaGelap ? Colors.white : Colors.black87;
     final Color warnaTeksIsiKanan = widget.statusTemaGelap ? Colors.amber.shade300 : Colors.black;
@@ -527,14 +668,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final Color warnaIcon = widget.statusTemaGelap ? Colors.amber.shade400 : AppColors.primary;
 
     return Container(
-      color: warnaLatarBelakang, // Memaksa latar belakang full hitam legam
+      color: warnaLatarBelakang, 
       height: double.infinity,
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. KARTU IDENTITAS VISUAL ADMIN (KOTAK FRAME DISELARASKAN)
+            // 1. KARTU IDENTITAS VISUAL USER PREMIUM (FRAME ADAPTIF)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -558,7 +699,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // KUNCI UTAMA: Nama Admin dipaksa putih murni kontras tinggi
                         Text(
                           widget.namaUser, 
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: warnaTeksNama, letterSpacing: 0.5),
@@ -582,7 +722,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            
             // 2. SEKSI INFORMASI AKUN RESMI
             Text(
               'Informasi Akun Resmi', 
@@ -609,7 +748,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: Text('Alamat Email Sistem', style: TextStyle(fontSize: 14, color: warnaTeksLabel, fontWeight: FontWeight.w500)),
                     trailing: Text(
                       user['email'] ?? '-', 
-                      style: TextStyle(color: widget.statusTemaGelap ? Colors.white : Colors.black, fontSize: 14),
+                      style: TextStyle(color: widget.statusTemaGelap ? Colors.white70 : Colors.black87, fontSize: 14),
                     ),
                   ),
                 ],
@@ -640,7 +779,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: TextStyle(fontSize: 12, color: widget.statusTemaGelap ? Colors.white60 : Colors.black54),
                     ),
                     value: widget.statusTemaGelap,
-                    // KUNCI KONTRAST: Mengubah warna tombol aktif menjadi kuning terang menyala agar tidak menyamar
                     activeColor: Colors.amber.shade400,
                     activeTrackColor: AppColors.primary.withOpacity(0.5),
                     onChanged: (bool value) {
@@ -652,7 +790,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     leading: Icon(Icons.lock_outline_rounded, color: warnaIcon),
                     title: Text('Keamanan & Ganti Password', style: TextStyle(fontSize: 14, color: warnaTeksLabel, fontWeight: FontWeight.w500)),
                     trailing: Icon(Icons.chevron_right_rounded, color: widget.statusTemaGelap ? Colors.white60 : Colors.grey),
-
                     onTap: _tampilkanDialogGantiPassword,
                   ),
                 ],
@@ -693,28 +830,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Fungsi penyeleksi konten halaman berdasarkan indeks menu bawah yang aktif
   Widget _dapatkanKontenHalaman() {
     switch (_currentIndex) {
       case 0:
         return _buildHalamanHomeUtama();
       case 1:
-        // JIKA ADMIN ATAU GURU, AKAN DIARAHKAN KE TAMPILAN GRAFIK STATISTIK ANGKATAN DI PART 4
         return (widget.role == 'admin' || widget.role == 'guru')
             ? SingleChildScrollView(
                 padding: const EdgeInsets.all(24.0),
                 child: _buildSeksiStatistikAdmin(),
               )
-            // JIKA SISWA/ORTU, LANGSUNG LEMPAR KE DETAIL RAPOR BAWAAN MEREKA SENDIRI
             : RaporSiswaScreen(idSiswa: widget.extraData['id'].toString());
       case 2:
         return (widget.role == 'admin')
             ? RegisterFormScreen(pembuatRole: widget.role)
             : (widget.role == 'guru')
                 ? InputNilaiScreen(
-                kelasGuru: widget.extraData['kelas_diajar'] ?? 'Belum Diatur', 
-                idGuru: widget.extraData['id'].toString(),
-                )
+                    kelasGuru: widget.extraData['kelas_diajar'] ?? 'Belum Diatur', 
+                    idGuru: widget.extraData['id'].toString(),
+                  )
                 : RaporSiswaScreen(idSiswa: widget.extraData['id'].toString());
       case 3:
         return EventScreen(
@@ -760,8 +894,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           });
         },
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.grey,
+        backgroundColor: widget.statusTemaGelap ? const Color(0xFF1C2D35) : Colors.white,
+        selectedItemColor: widget.statusTemaGelap ? Colors.amber.shade400 : AppColors.primary,
+        unselectedItemColor: widget.statusTemaGelap ? Colors.white38 : Colors.grey,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
         unselectedLabelStyle: const TextStyle(fontSize: 11),
         items: [
@@ -777,4 +912,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-}
+
+  // 🌟 HELPER WIDGET A: Merender tombol bulat premium khas visual menu ikon MyTel-U
+  Widget _buildItemMenuBulat(String label, IconData ikon, Color warnaLingkaran, VoidCallback aksiKetuk, Color bgKartu, Color txtUtama) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        InkWell(
+          onTap: aksiKetuk,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: widget.statusTemaGelap ? warnaLingkaran.withOpacity(0.18) : warnaLingkaran.withOpacity(0.1),
+              shape: BoxShape.circle,
+              border: Border.all(color: warnaLingkaran.withOpacity(0.3), width: 1),
+            ),
+            child: Icon(ikon, color: warnaLingkaran, size: 26),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: txtUtama, letterSpacing: 0.2),
+        ),
+      ],
+    );
+  }
+
+  // 🌟 HELPER WIDGET B: Merender komponen metrik cadangan dasar sekolah
+  Widget _buildItemMetrikDasar(String judul, String nilai, IconData ikon, Color warnaIkon, Color bgKartu, Color warnaBorder, Color txtUtama, Color txtSub) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: bgKartu, borderRadius: BorderRadius.circular(14), border: Border.all(color: warnaBorder)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(radius: 18, backgroundColor: warnaIkon.withOpacity(0.12), child: Icon(ikon, color: warnaIkon, size: 18)),
+          const SizedBox(height: 10),
+          Text(nilai, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: txtUtama)),
+          const SizedBox(height: 2),
+          Text(judul, style: TextStyle(fontSize: 11, color: txtSub, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+} 

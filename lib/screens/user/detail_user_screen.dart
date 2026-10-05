@@ -37,6 +37,74 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
     _panggilDataNilai();
   }
 
+  Future<void> _eksekusiHapusAkunPengguna() async {
+    setState(() => _isLoading = true);
+    try {
+      // Mengirimkan paket data ID target ke server MySQL
+      final res = await ApiService.hapusAkunUser(widget.userData['id'].toString());
+      
+      if (!mounted) return;
+      
+      if (res['status'] == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message'] ?? 'Akun berhasil dihapus dari sistem.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context); // Otomatis kembali ke halaman daftar siswa setelah sukses hapus
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message'] ?? 'Gagal menghapus akun.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal mengeksekusi perintah hapus: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // DIALOG KONFIRMASI BAHAYA: Mencegah admin menekan tombol hapus secara tidak sengaja
+  void _tampilkanDialogKonfirmasiHapus() {
+    final bool isDark = widget.statusTemaGelap;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1C2D35) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: Colors.red, size: 26),
+            SizedBox(width: 8),
+            Text('Hapus Akun Permanen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus akun ${widget.userData['nama_lengkap']}?\n\nTindakan ini tidak dapat dibatalkan dan akan membersihkan hak akses masuk sistem.',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('BATAL', style: TextStyle(color: isDark ? Colors.white60 : Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () {
+              Navigator.pop(ctx); // Tutup jendela dialog konfirmasi
+              _eksekusiHapusAkunPengguna(); // Jalankan fungsi hapus di atas
+            },
+            child: const Text('YA, HAPUS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+  
   void _tampilkanDialogEditUserMasaDepan() {
     final user = widget.userData;
     final _formKeyEditGlobal = GlobalKey<FormState>();
@@ -177,8 +245,34 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                         items: ['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'].map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
                         onChanged: (v) => setModalState(() => _kelasTerpilihDinamis = v!),
                       ),
+                      
+                      // 🌟 4. FITUR TAMBAHAN: DROPDOWN TAHUN ANGKATAN (HANYA MUNCUL JIKA USER = SISWA)
+                      if (user['role'] == 'siswa') ...[
+                        const SizedBox(height: 18),
+                        DropdownButtonFormField<String>(
+                          value: (user['tahun_angkatan'] ?? '2026').toString(),
+                          dropdownColor: warnaLatarDialog,
+                          style: TextStyle(color: warnaTeksUtama, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            labelText: 'Tahun Angkatan Masuk Murid',
+                            labelStyle: TextStyle(color: warnaTeksSub),
+                            prefixIcon: Icon(Icons.date_range_rounded, color: warnaIkonSeksi),
+                            fillColor: warnaInputBackground,
+                            filled: true,
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: warnaBorderActive, width: 2)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          items: ['2024', '2025', '2026', '2027'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                          onChanged: (v) {
+                            setModalState(() {
+                              user['tahun_angkatan'] = int.tryParse(v!);
+                            });
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 18),
-                      // 4. RESET PASSWORD BARU (OPSIONAL)
+                      
+                      // 5. RESET PASSWORD BARU (OPSIONAL)
                       TextFormField(
                         controller: _passBaruController,
                         obscureText: true,
@@ -193,6 +287,31 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                           filled: true,
                           focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: warnaBorderActive, width: 2)),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      
+                      // 🌟 6. FITUR TAMBAHAN DANGER ZONE: TOMBOL HAPUS AKUN PERMANEN DARI APLIKASI
+                      const SizedBox(height: 24),
+                      const Divider(color: Colors.redAccent, thickness: 1),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 45,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.red, width: 1.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            backgroundColor: Colors.red.withOpacity(0.05),
+                          ),
+                          icon: const Icon(Icons.delete_forever_rounded, color: Colors.red),
+                          label: const Text(
+                            'HAPUS AKUN PENGGUNA', 
+                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context); // Tutup dialog edit utama terlebih dahulu
+                            _tampilkanDialogKonfirmasiHapus(); // Panggil fungsi peringatan bahaya di Part 1
+                          },
                         ),
                       ),
                     ],
