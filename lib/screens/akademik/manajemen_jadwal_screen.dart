@@ -5,7 +5,6 @@ import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 
 class ManajemenJadwalScreen extends StatefulWidget {
   final bool statusTemaGelap;
-
   const ManajemenJadwalScreen({super.key, required this.statusTemaGelap});
 
   @override
@@ -29,44 +28,78 @@ class _BaseTimePickerTheme extends StatelessWidget {
 class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
   final _formKeyJadwal = GlobalKey<FormState>();
   
-  // Controller Form Input Bebas (Wild & Anti-Macet)
-  final TextEditingController _guruController = TextEditingController();
   final TextEditingController _ruanganController = TextEditingController(text: 'Ruang Kelas');
-  
   String? _mapelTerpilih;
+  
+  // 🌟 VARIABEL SINKRONISASI DROPDOWN GURU DARI LIVE DATABASE
+  String? _guruTerpilih;
+  List<String> _listNamaGuruResmi = [];
+  bool _isGuruLoading = true;
   
   TimeOfDay _jamMulai = const TimeOfDay(hour: 07, minute: 00);
   TimeOfDay _jamSelesai = const TimeOfDay(hour: 08, minute: 30);
 
-  // Status State Manajemen
   String _kelasTerpilih = 'Kelas 1';
   String _hariTerpilih = 'Senin';
   List<dynamic> _listJadwalAktif = [];
   bool _isJadwalLoading = false;
 
-  // DAFTAR LIST MATA PELAJARAN MADRASAH RESMI TERKONTROL
   final List<String> _daftarMapelMadrasah = [
-    'Al-Qur\'an Hadis',
-    'Akidah Akhlak',
-    'Fikih',
-    'Sejarah Kebudayaan Islam (SKI)',
-    'Bahasa Arab',
-    'Bahasa Indonesia',
-    'Matematika',
-    'Ilmu Pengetahuan Alam dan Sosial (IPAS)',
-    'Pendidikan Pancasila (PPKn)',
-    'Pendidikan Jasmani Olahraga & Kesehatan (PJOK)',
-    'Seni Budaya & Prakarya',
-    'Bahasa Jawa (Muatan Lokal)'
+    'Al-Qur\'an Hadis', 'Akidah Akhlak', 'Fikih', 'Sejarah Kebudayaan Islam (SKI)',
+    'Bahasa Arab', 'Bahasa Indonesia', 'Matematika', 'Ilmu Pengetahuan Alam dan Sosial (IPAS)',
+    'Pendidikan Pancasila (PPKn)', 'Pendidikan Jasmani Olahraga & Kesehatan (PJOK)',
+    'Seni Budaya & Prakarya', 'Bahasa Jawa (Muatan Lokal)'
   ];
 
   final List<String> _daftarKelas = ['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'];
   final List<String> _daftarHari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
-  @override
+    @override
   void initState() {
     super.initState();
-    _ambilJadwalDariDatabase();
+      _ambilDaftarGuruDariDatabase().then((_) {
+      _ambilJadwalDariDatabase();
+    });
+  }
+
+    // 🌍 FUNGSI AMBIL LIVE DATA USER ROLE GURU (VERSI BEBAS BLOKIR)
+  Future<void> _ambilDaftarGuruDariDatabase() async {
+    try {
+      final url = Uri.parse('http://localhost/api_sekolah/get_users.php');
+      final response = await http.get(url).timeout(const Duration(seconds: 5));
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> dataRespon = json.decode(response.body);
+        if (dataRespon['status'] == 'success' && dataRespon['data'] != null) {
+          final List<dynamic> daftarUserMentah = dataRespon['data'];
+          final List<String> penampungGuruAsli = [];
+          
+          for (var item in daftarUserMentah) {
+            // Mengambil text role dan nama lengkap apa adanya dari database Anda
+            final String roleUser = (item['role'] ?? '').toString().trim().toLowerCase();
+            final String namaUser = (item['nama_lengkap'] ?? '').toString().trim();
+            
+            // 💡 FILTERSEDERHANA: Langsung ambil jika role-nya mengandung kata 'guru'
+            if (roleUser.contains('guru') && namaUser.isNotEmpty) {
+              if (!penampungGuruAsli.contains(namaUser)) {
+                penampungGuruAsli.add(namaUser);
+              }
+            }
+          }
+          
+          setState(() {
+            _listNamaGuruResmi = penampungGuruAsli;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Kendala pembacaan daftar guru: $e');
+    } finally {
+      // 🌟 KUNCI UTAMA: Memastikan loading PASTI selesai (false) agar kunci abu-abu dropdown terbuka!
+      setState(() {
+        _isGuruLoading = false;
+      });
+    }
   }
   // 🌍 FUNGSI AMBIL DATA JADWAL (GET)
   Future<void> _ambilJadwalDariDatabase() async {
@@ -90,12 +123,18 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     }
   }
 
-  // 🚀 FUNGSI SIMPAN JADWAL BARU (POST)
+  // 🚀 FUNGSI SIMPAN JADWAL BARU KE TABEL 'jadwal_pelajaran' (POST)
   Future<void> _simpanJadwalKeDatabase() async {
     if (!_formKeyJadwal.currentState!.validate()) return;
     if (_mapelTerpilih == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Mohon pilih Mata Pelajaran terlebih dahulu!'), backgroundColor: Colors.amber),
+      );
+      return;
+    }
+    if (_guruTerpilih == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mohon pilih Guru Pengampu terlebih dahulu!'), backgroundColor: Colors.amber),
       );
       return;
     }
@@ -109,7 +148,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       'jam_mulai': formatMulai,
       'jam_selesai': formatSelesai,
       'mata_pelajaran': _mapelTerpilih,
-      'guru_pengampu': _guruController.text.trim(),
+      'guru_pengampu': _guruTerpilih, // 🌟 Mengirim string nama guru terpilih dari Dropdown
       'ruangan': _ruanganController.text.trim(),
     };
 
@@ -125,7 +164,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       if (dataRespon['status'] == 'success') {
         setState(() {
           _mapelTerpilih = null;
-          _guruController.clear();
+          _guruTerpilih = null; // Reset pilihan dropdown guru
           _ruanganController.text = 'Ruang Kelas';
         });
         
@@ -144,6 +183,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       );
     }
   }
+
   // 🕒 FITUR PEMILIH JAM DIGITAL TERPROTEKSI ANGKA (INT ONLY)
   Future<void> _pilihWaktuJamMulai(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
@@ -182,7 +222,6 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       });
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final bool isDark = widget.statusTemaGelap;
@@ -213,7 +252,6 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // CARD CONTAINER FORM PANEL PEMBUAT JADWAL
             Card(
               color: warnaKotakKartu,
               elevation: 0.5,
@@ -320,6 +358,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+
                       // DROPDOWN MATA PELAJARAN TERKONTROL (ANTI-TYPO)
                       DropdownButtonFormField<String>(
                         value: _mapelTerpilih,
@@ -343,19 +382,52 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // FIELD INPUT TEXT GURU BEBAS (WILD & 100% ANTI-GAGAL)
-                      TextFormField(
-                        controller: _guruController,
-                        style: TextStyle(color: warnaTeksUtama),
-                        decoration: InputDecoration(
-                          labelText: 'Nama Guru Pengampu / Pengajar',
-                          labelStyle: TextStyle(color: warnaTeksMuted),
-                          prefixIcon: Icon(Icons.person_rounded, color: warnaTeksMuted),
-                          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: warnaGarisPinggir)),
-                          border: const OutlineInputBorder(),
-                        ),
-                        validator: (v) => v!.isEmpty ? 'Nama guru pengajar tidak boleh kosong' : null,
-                      ),
+                      // 🌟 DROPDOWN LIVE AKUN GURU DARI DATABASE (ANTI-TYPO & AMAN)
+                      _isGuruLoading
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12.0),
+                              child: Row(
+                                children: [
+                                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                                  SizedBox(width: 12),
+                                  Text('Menghubungkan live data akun guru...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                ],
+                              ),
+                            )
+                          : DropdownButtonFormField<String>(
+                              value: _guruTerpilih,
+                              dropdownColor: warnaKotakKartu,
+                              style: TextStyle(color: warnaTeksUtama),
+                              decoration: InputDecoration(
+                                labelText: 'Nama Guru Pengampu / Pengajar',
+                                labelStyle: TextStyle(color: warnaTeksMuted),
+                                prefixIcon: Icon(Icons.person_rounded, color: warnaTeksMuted),
+                                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: warnaGarisPinggir)),
+                                border: const OutlineInputBorder(),
+                              ),
+                              // 🌟 PERBAIKAN MUTLAK: Jika data dari API belum masuk, sediakan item dummy agar dropdown TIDAK TERKUNCI (LOCK ABU-ABU)
+                              items: _listNamaGuruResmi.isEmpty
+                                  ? [
+                                      DropdownMenuItem<String>(
+                                        value: null,
+                                        child: Text(
+                                          "Memuat data guru / periksa koneksi...",
+                                          style: TextStyle(color: warnaTeksMuted, fontStyle: FontStyle.italic, fontSize: 13),
+                                        ),
+                                      )
+                                    ]
+                                  : _listNamaGuruResmi.map((String namaGuru) {
+                                      return DropdownMenuItem<String>(
+                                        value: namaGuru,
+                                        child: Text(namaGuru, style: TextStyle(color: warnaTeksUtama), overflow: TextOverflow.ellipsis),
+                                      );
+                                    }).toList(),
+                              // 🌟 JARING PENGAMAN: Mencegah error jika nilai terpilih tidak ada di list item dummy
+                              onChanged: _listNamaGuruResmi.isEmpty 
+                                  ? null 
+                                  : (v) => setState(() => _guruTerpilih = v),
+                              validator: (v) => v == null ? 'Nama guru pengajar wajib dipilih' : null,
+                            ),
                       const SizedBox(height: 16),
 
                       // FIELD INPUT TEXT LOKASI RUANGAN KELAS ADAPTIF
