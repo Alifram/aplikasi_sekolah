@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
+import 'package:aplikasi_sekolah/core/services/api_config.dart';
 
 class ManajemenJadwalScreen extends StatefulWidget {
   final bool statusTemaGelap;
@@ -65,7 +66,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     // 🌍 FUNGSI AMBIL LIVE DATA USER ROLE GURU (VERSI BEBAS BLOKIR)
   Future<void> _ambilDaftarGuruDariDatabase() async {
     try {
-      final url = Uri.parse('http://localhost/api_sekolah/get_users.php');
+      final url = Uri.parse('${ApiConfig.baseUrl}/get_users.php');
       final response = await http.get(url).timeout(const Duration(seconds: 5));
       
       if (response.statusCode == 200) {
@@ -87,30 +88,36 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
             }
           }
           
-          setState(() {
-            _listNamaGuruResmi = penampungGuruAsli;
-          });
+          if (mounted) {
+            setState(() {
+              _listNamaGuruResmi = penampungGuruAsli;
+            });
+          }
         }
       }
     } catch (e) {
       debugPrint('Kendala pembacaan daftar guru: $e');
     } finally {
       // 🌟 KUNCI UTAMA: Memastikan loading PASTI selesai (false) agar kunci abu-abu dropdown terbuka!
-      setState(() {
-        _isGuruLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGuruLoading = false;
+        });
+      }
     }
   }
   // 🌍 FUNGSI AMBIL DATA JADWAL (GET)
   Future<void> _ambilJadwalDariDatabase() async {
     setState(() => _isJadwalLoading = true);
     try {
-      final url = Uri.parse('http://localhost/api_sekolah/get_jadwal_by_kelas.php?kelas=$_kelasTerpilih');
+      final url = Uri.parse('${ApiConfig.baseUrl}/get_jadwal_by_kelas.php').replace(
+        queryParameters: {'kelas': _kelasTerpilih, 'hari': _hariTerpilih},
+      );
       final response = await http.get(url);
       
       if (response.statusCode == 200) {
         final dataRespon = json.decode(response.body);
-        if (dataRespon['status'] == 'success') {
+        if (dataRespon['status'] == 'success' && mounted) {
           setState(() {
             _listJadwalAktif = dataRespon['data'] ?? [];
           });
@@ -119,7 +126,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     } catch (e) {
       debugPrint('Gagal memuat jadwal: $e');
     } finally {
-      setState(() => _isJadwalLoading = false);
+      if (mounted) setState(() => _isJadwalLoading = false);
     }
   }
 
@@ -153,13 +160,14 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     };
 
     try {
-      final url = Uri.parse('http://localhost/api_sekolah/save_jadwal.php');
+      final url = Uri.parse('${ApiConfig.baseUrl}/save_jadwal.php');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: json.encode(dataPayload),
       );
 
+      if (!mounted) return;
       final dataRespon = json.decode(response.body);
       if (dataRespon['status'] == 'success') {
         setState(() {
@@ -178,6 +186,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Terjadi kesalahan koneksi server: $e'), backgroundColor: Colors.red),
       );

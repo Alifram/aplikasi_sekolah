@@ -26,7 +26,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
 
   String? _selectedSiswaId;
   String _selectedMapel = 'Al-Quran Hadist';
-  String _selectedSemesterFormat = 'Kelas 1 - Semester 1';
+  String? _selectedSemesterFormat;
   String _jenisNilaiTerpilih = 'tugas'; 
 
   final TextEditingController _skorNilaiController = TextEditingController();
@@ -48,7 +48,47 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedSemesterFormat = _formatSemester(widget.kelasGuru, 'Semester 1');
     _panggilDaftarSiswa();
+  }
+
+  String? _normalisasiKelas(dynamic value) {
+    final kelas = value?.toString().trim() ?? '';
+    final match = RegExp(r'^(?:Kelas\s*)?([1-6])$', caseSensitive: false)
+        .firstMatch(kelas);
+    return match == null ? null : 'Kelas ${match.group(1)}';
+  }
+
+  String? _formatSemester(dynamic kelas, String semester) {
+    final kelasNormal = _normalisasiKelas(kelas);
+    if (kelasNormal == null) return null;
+    return '$kelasNormal - $semester';
+  }
+
+  Map<String, dynamic>? get _siswaTerpilih {
+    for (final siswa in _listSiswa) {
+      if (siswa['id'].toString() == _selectedSiswaId) return siswa;
+    }
+    return null;
+  }
+
+  String? get _kelasSiswaSaatIni =>
+      _normalisasiKelas(_siswaTerpilih?['kelas_diajar']);
+
+  void _pilihSiswa(String? siswaId) {
+    final siswa = _listSiswa.cast<Map<String, dynamic>?>().firstWhere(
+      (item) => item?['id'].toString() == siswaId,
+      orElse: () => null,
+    );
+    final semester = _selectedSemesterFormat?.split(' - ').last ?? 'Semester 1';
+    final kelasSiswa = _normalisasiKelas(siswa?['kelas_diajar']);
+
+    setState(() {
+      _selectedSiswaId = siswaId;
+      if (kelasSiswa != null) {
+        _selectedSemesterFormat = _formatSemester(kelasSiswa, semester);
+      }
+    });
   }
 
   // Menghubungkan UI dengan fungsi ambil data di NilaiService
@@ -77,25 +117,59 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
-
-    // 🌟 1. Cari data objek murid terpilih secara internal untuk diekstrak angkatannya
-    final siswaTerpilih = _listSiswa.firstWhere(
-      (s) => s['id'].toString() == _selectedSiswaId,
-      orElse: () => null,
-    );
-
-    // Fallback default tahun jika data terdeteksi kosong di database user
-    String angkatanOtomatis = '2026';
-    if (siswaTerpilih != null && siswaTerpilih['tahun_angkatan'] != null) {
-      angkatanOtomatis = siswaTerpilih['tahun_angkatan'].toString();
+    final siswaTerpilih = _siswaTerpilih;
+    final kelasSiswa = _normalisasiKelas(siswaTerpilih?['kelas_diajar']);
+    final kelasOtomatis = _selectedSemesterFormat?.split(' - ').first;
+    if (kelasSiswa == null || kelasOtomatis == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kelas siswa belum diatur. Periksa data siswa terlebih dahulu.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
 
-    // 🌟 2. Memotong format string: 'Kelas 1 - Semester 1' -> diambil 'Kelas 1'
-    String kelasOtomatis = _selectedSemesterFormat.split(' - ').first;
+    final angkatanOtomatis = int.tryParse(
+      siswaTerpilih?['tahun_angkatan']?.toString() ?? '',
+    );
+    if (angkatanOtomatis == null || angkatanOtomatis <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tahun angkatan siswa belum valid. Lengkapi data siswa terlebih dahulu.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-    // 🌟 3. Memotong format string: 'Kelas 1 - Semester 1' -> diambil 'Semester 1'
-    String semesterOtomatis = _selectedSemesterFormat.split(' - ').last;
+    if (kelasOtomatis != kelasSiswa) {
+      final lanjutSimpan = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Konfirmasi kelas nilai'),
+          content: Text(
+            'Kelas siswa saat ini $kelasSiswa, tetapi nilai akan disimpan sebagai $kelasOtomatis. '
+            'Lanjutkan hanya jika ini memang nilai untuk riwayat kelas tersebut.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('BATAL'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('LANJUTKAN'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || lanjutSimpan != true) return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    final semesterOtomatis = _selectedSemesterFormat!.split(' - ').last;
 
     // 🌟 4. Paket kiriman JSON lengkap dengan data Snapshot riwayat abadi
     final dataInput = {
@@ -103,7 +177,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
       "guru_id": widget.idGuru,
       "semester": semesterOtomatis,
       "kelas": kelasOtomatis,
-      "tahun_angkatan": angkatanOtomatis,
+      "tahun_angkatan": angkatanOtomatis.toString(),
       "mata_pelajaran": _selectedMapel,
       "jenis_nilai": _jenisNilaiTerpilih,
       "skor_nilai": _skorNilaiController.text.trim(),
@@ -139,6 +213,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
     _keteranganController.clear();
     setState(() {
       _selectedSiswaId = null;
+      _selectedSemesterFormat = _formatSemester(widget.kelasGuru, 'Semester 1');
       _jenisNilaiTerpilih = 'tugas';
     });
   }
@@ -215,7 +290,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                           child: Text('${s['nama_lengkap']} (${s['nomor_induk']})'),
                         );
                       }).toList(),
-                      onChanged: (v) => setState(() => _selectedSiswaId = v),
+                      onChanged: _pilihSiswa,
                     ),
                     const SizedBox(height: 16),
 
@@ -233,8 +308,26 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                           child: Text(s),
                         );
                       }).toList(),
-                      onChanged: (v) => setState(() => _selectedSemesterFormat = v!),
+                      validator: (value) =>
+                          value == null ? 'Pilih kelas dan semester' : null,
+                      onChanged: (v) =>
+                          setState(() => _selectedSemesterFormat = v),
                     ),
+                    if (_selectedSiswaId != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _kelasSiswaSaatIni == null
+                            ? 'Kelas saat ini siswa belum diatur.'
+                            : 'Kelas saat ini siswa: $_kelasSiswaSaatIni. '
+                                'Kelas berbeda akan diminta konfirmasi sebelum disimpan.',
+                        style: TextStyle(
+                          color: _kelasSiswaSaatIni == null
+                              ? Colors.red.shade700
+                              : Colors.grey.shade700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     // Dropdown Mata Pelajaran

@@ -1,25 +1,19 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:crypto/crypto.dart';
+import 'api_config.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:8000';
-
-  static String _konversiKeMd5(String text) {
-    return md5.convert(utf8.encode(text)).toString();
-  }
+  static const String baseUrl = ApiConfig.baseUrl;
 
   static Future<Map<String, dynamic>> login(String identifier, String password) async {
     try {
-      final String passwordTerenkripsi = _konversiKeMd5(password);
-
       final response = await http.post(
         Uri.parse('$baseUrl/login.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "identifier": identifier,
-          "password": passwordTerenkripsi, 
+          "password": password,
         }),
       );
 
@@ -48,10 +42,6 @@ class AuthService {
 
   static Future<Map<String, dynamic>> register(Map<String, dynamic> dataRegistrasi) async {
     try {
-      if (dataRegistrasi.containsKey('password')) {
-        dataRegistrasi['password'] = _konversiKeMd5(dataRegistrasi['password']);
-      }
-
       final response = await http.post(
         Uri.parse('$baseUrl/register.php'),
         headers: {"Content-Type": "application/json"},

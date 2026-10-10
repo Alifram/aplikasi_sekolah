@@ -4,10 +4,13 @@ import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
 import 'package:aplikasi_sekolah/core/services/api_service.dart';
+import 'package:aplikasi_sekolah/core/services/api_config.dart';
 import '../akademik/manajemen_jadwal_screen.dart';
+import '../akademik/tampilan_jadwal_screen.dart';
 import '../akademik/kelas_screen.dart';
 import '../akademik/input_nilai_screen.dart';
 import '../akademik/rapor_siswa_screen.dart';
+import '../akademik/presensi_screen.dart';
 import '../informasi/event_screen.dart';
 import '../informasi/pantau_data_screen.dart';
 import '../auth/register_form_screen.dart';
@@ -88,6 +91,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
   }
+
+  void _bukaPresensi() {
+    final userId = widget.extraData['id']?.toString();
+    if (userId == null || userId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID akun tidak ditemukan. Silakan login ulang.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PresensiScreen(
+          userId: userId,
+          role: widget.role,
+          kelasUser: widget.extraData['kelas_diajar']?.toString() ?? '',
+          statusTemaGelap: widget.statusTemaGelap,
+        ),
+      ),
+    );
+  }
+
   void _tampilkanDialogGantiPassword() {
     final TextEditingController _passLamaController = TextEditingController();
     final TextEditingController _passBaruController = TextEditingController();
@@ -267,6 +293,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         MaterialPageRoute(builder: (context) => ManajemenJadwalScreen(statusTemaGelap: widget.statusTemaGelap)),
                       );
                     }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Presensi', Icons.fact_check_rounded, Colors.blue, _bukaPresensi,
+                        warnaKotakKartu, warnaTeksUtama),
                   ],
 
                   // --- KONTROL GRID MENU KHUSUS GURU ---
@@ -274,14 +302,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _buildItemMenuBulat('Input Nilai', Icons.assignment_rounded, Colors.red, () {
                       setState(() => _currentIndex = 2);
                     }, warnaKotakKartu, warnaTeksUtama),
-                    _buildItemMenuBulat('Presensi', Icons.fact_check_rounded, Colors.blue, () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur Presensi segera hadir!')));
-                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Presensi', Icons.fact_check_rounded, Colors.blue, _bukaPresensi,
+                        warnaKotakKartu, warnaTeksUtama),
                     _buildItemMenuBulat('Statistik', Icons.analytics_rounded, Colors.green, () {
                       setState(() => _currentIndex = 1);
                     }, warnaKotakKartu, warnaTeksUtama),
                     _buildItemMenuBulat('Jadwal Guru', Icons.calendar_month_rounded, Colors.teal, () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Menampilkan Jadwal Mengajar Guru...')));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TampilanJadwalScreen(
+                            roleUser: widget.role,
+                            namaLengkapUser: widget.namaUser,
+                            kelasSiswa: widget.extraData['kelas_diajar']?.toString() ?? '',
+                            statusTemaGelap: widget.statusTemaGelap,
+                          ),
+                        ),
+                      );
                     }, warnaKotakKartu, warnaTeksUtama),
                   ],
 
@@ -290,14 +327,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _buildItemMenuBulat('Rapor Saya', Icons.menu_book_rounded, Colors.red, () {
                       setState(() => _currentIndex = 1);
                     }, warnaKotakKartu, warnaTeksUtama),
-                    _buildItemMenuBulat('Presensi', Icons.co_present_rounded, Colors.blue, () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur Riwayat Absensi segera hadir!')));
-                    }, warnaKotakKartu, warnaTeksUtama),
+                    _buildItemMenuBulat('Presensi', Icons.co_present_rounded, Colors.blue, _bukaPresensi,
+                        warnaKotakKartu, warnaTeksUtama),
                     _buildItemMenuBulat('Info MIM', Icons.notifications_active_rounded, Colors.amber.shade800, () {
                       setState(() => _currentIndex = 3);
                     }, warnaKotakKartu, warnaTeksUtama),
                     _buildItemMenuBulat('Jadwal Pelajaran', Icons.calendar_today_rounded, Colors.teal, () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Menampilkan Jadwal Pelajaran Kelas...')));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TampilanJadwalScreen(
+                            roleUser: widget.role,
+                            namaLengkapUser: widget.namaUser,
+                            kelasSiswa: widget.extraData['kelas_diajar']?.toString() ?? '',
+                            statusTemaGelap: widget.statusTemaGelap,
+                          ),
+                        ),
+                      );
                     }, warnaKotakKartu, warnaTeksUtama),
                   ],
                 ],
@@ -372,16 +418,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   width: double.infinity,
                                   decoration: BoxDecoration(
                                     color: Colors.grey.shade300,
-                                    image: DecorationImage(
-                                      image: NetworkImage(
-                                        (ev['gambar_url'] != null && ev['gambar_url'].toString().isNotEmpty)
-                                            ? (ev['gambar_url'].toString().startsWith('http')
-                                                ? ev['gambar_url'].toString()
-                                                : 'http://localhost/api_sekolah/uploads/${ev['gambar_url']}') // 🌟 SESUAIKAN dengan folder simpan gambar XAMPP Anda jika berbeda
-                                            : 'https://unsplash.com',
-                                      ),
-                                      fit: BoxFit.cover,
-                                    ),
+                                    image: ev['gambar_url'] != null &&
+                                            ev['gambar_url'].toString().isNotEmpty
+                                        ? DecorationImage(
+                                            image: NetworkImage(
+                                              ev['gambar_url'].toString().startsWith('http')
+                                                  ? ev['gambar_url'].toString()
+                                                  : '${ApiConfig.baseUrl}/view_image.php?file=${Uri.encodeQueryComponent(ev['gambar_url'].toString())}',
+                                            ),
+                                            fit: BoxFit.cover,
+                                          )
+                                        : null,
                                   ),
                                   child: Container(
                                     padding: const EdgeInsets.all(10),
@@ -852,8 +899,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 : RaporSiswaScreen(idSiswa: widget.extraData['id'].toString());
       case 3:
         return EventScreen(
+          userId: widget.extraData['id'].toString(),
           namaUser: widget.namaUser,
           roleUser: widget.role,
+          kelasUser: widget.extraData['kelas_diajar']?.toString(),
         );
       case 4:
         return _buildHalamanProfilLengkap();

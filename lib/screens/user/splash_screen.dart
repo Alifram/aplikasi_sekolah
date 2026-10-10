@@ -34,7 +34,7 @@ class _SplashScreenState extends State<_SplashScreenStateful> {
 
     if (!mounted) return; 
 
-        if (isLogin) {
+    if (isLogin) {
       final String userId = prefs.getString('user_id') ?? '';
       final String nomorInduk = prefs.getString('nomor_induk') ?? '';
       final String namaLengkap = prefs.getString('nama_lengkap') ?? 'Pengguna';
@@ -75,7 +75,7 @@ class _SplashScreenState extends State<_SplashScreenStateful> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(70),
                 child: Image.asset(
-                  'assets/images/logo_sekolah.png',
+                  'assets/logo_mim.png',
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
                     return const Icon(

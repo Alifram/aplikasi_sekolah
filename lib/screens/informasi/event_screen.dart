@@ -6,14 +6,17 @@ import 'package:image_picker/image_picker.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/informasi_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
+import 'package:aplikasi_sekolah/core/services/api_config.dart';
 
 class EventScreen extends StatefulWidget {
+  final String userId;
   final String namaUser;
   final String roleUser;
   final String? kelasUser;
 
   const EventScreen({
     super.key,
+    required this.userId,
     required this.namaUser,
     required this.roleUser,
     this.kelasUser,
@@ -431,17 +434,27 @@ class _EventScreenState extends State<EventScreen> {
                           
                           final dataKomentar = {
                             "event_id": eventId,
-                            "user_id": 1,
+                            "user_id": widget.userId,
                             "nama_pengirim": widget.namaUser,
                             "role_pengirim": widget.roleUser,
                             "isi_komentar": komentarController.text.trim(),
                           };
 
-                          await InformasiService.kirimKomentar(dataKomentar);
-                          komentarController.clear();
-                          setModalState(() {
-                            isKomentarLoading = true; // Memicu pengambilan ulang daftar secara aman
-                          });
+                          final res = await InformasiService.kirimKomentar(dataKomentar);
+                          if (!context.mounted) return;
+                          if (res['status'] == 'success') {
+                            komentarController.clear();
+                            setModalState(() {
+                              isKomentarLoading = true;
+                            });
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(res['message'] ?? 'Gagal mengirim komentar.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
                         },
                       ),
                     ],
@@ -483,7 +496,7 @@ class _EventScreenState extends State<EventScreen> {
                           // Menarik gambar berita secara otomatis dari direktori server backend
                           if (item['gambar_url'] != null)
                             Image.network(
-                              'http://localhost:8000/view_image.php?file=${item['gambar_url']}',
+                              '${ApiConfig.baseUrl}/view_image.php?file=${Uri.encodeQueryComponent(item['gambar_url'].toString())}',
                               height: 220,
                               width: double.infinity,
                               fit: BoxFit.cover,

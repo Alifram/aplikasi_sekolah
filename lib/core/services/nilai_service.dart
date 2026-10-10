@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
 
 class NilaiService {
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   static Future<Map<String, dynamic>> ambilSiswa(String kelas) async {
     try {

@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
 
 class KelasService {
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   // Fungsi khusus untuk mengambil daftar teman sekelas dari backend PHP
   static Future<Map<String, dynamic>> ambilTemanSekelas(String kelas) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
+import 'package:aplikasi_sekolah/core/services/api_config.dart';
 
 class TampilanJadwalScreen extends StatefulWidget {
   final String roleUser;       // 'guru' atau 'siswa'
@@ -25,6 +26,7 @@ class _TampilanJadwalScreenState extends State<TampilanJadwalScreen> {
   String _hariAktif = 'Senin';
   List<dynamic> _jadwalHariIni = [];
   bool _isLoadingJadwal = false;
+  String _jadwalError = '';
 
   final List<String> _daftarHari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -37,24 +39,26 @@ class _TampilanJadwalScreenState extends State<TampilanJadwalScreen> {
   // 🌍 FUNGSI AMBIL DATA JADWAL BERDASARKAN ROLE & HARI
   Future<void> _ambilDataJadwalMatriks() async {
     setState(() => _isLoadingJadwal = true);
+    _jadwalError = '';
     try {
       // Menggunakan file get_jadwal_by_kelas.php yang fleksibel
-      String urlString = 'http://localhost/api_sekolah/get_jadwal_by_kelas.php?hari=$_hariAktif';
-      
-      // Jika siswa, filter berdasarkan kelasnya. Jika guru, kita ambil semua lalu filter di Flutter
+      final queryParameters = <String, String>{'hari': _hariAktif};
       if (widget.roleUser == 'siswa') {
-        urlString += '&kelas=${widget.kelasSiswa.isNotEmpty ? widget.kelasSiswa : "Kelas 1"}';
+        queryParameters['kelas'] =
+            widget.kelasSiswa.isNotEmpty ? widget.kelasSiswa : 'Kelas 1';
       } else {
-        // Fallback default kelas untuk penarikan awal guru
-        urlString += '&kelas=Kelas 1'; 
+        queryParameters['guru'] = widget.namaLengkapUser;
       }
 
-      final response = await http.get(Uri.parse(urlString));
+      final uri = Uri.parse(
+        '${ApiConfig.baseUrl}/get_jadwal_by_kelas.php',
+      ).replace(queryParameters: queryParameters);
+      final response = await http.get(uri);
       if (response.statusCode == 200) {
         final dataRespon = json.decode(response.body);
         if (dataRespon['status'] == 'success') {
           List<dynamic> mentah = dataRespon['data'] ?? [];
-          
+          if (!mounted) return;
           setState(() {
             if (widget.roleUser == 'guru') {
               // Jika role GURU: Hanya tampilkan jadwal yang nama pengampunya cocok dengan user login
@@ -65,12 +69,19 @@ class _TampilanJadwalScreenState extends State<TampilanJadwalScreen> {
               _jadwalHariIni = mentah;
             }
           });
+        } else {
+          _jadwalError = dataRespon['message'] ?? 'Gagal memuat jadwal.';
         }
+      } else {
+        _jadwalError = 'Server gagal memuat jadwal (${response.statusCode}).';
       }
     } catch (e) {
       debugPrint('Gagal memuat matriks jadwal MyTel-U: $e');
+      _jadwalError = 'Tidak dapat terhubung ke server jadwal.';
     } finally {
-      setState(() => _isLoadingJadwal = false);
+      if (mounted) {
+        setState(() => _isLoadingJadwal = false);
+      }
     }
   }
   @override
@@ -149,6 +160,17 @@ class _TampilanJadwalScreenState extends State<TampilanJadwalScreen> {
           Expanded(
             child: _isLoadingJadwal
                 ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                : _jadwalError.isNotEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            _jadwalError,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: warnaTeksSub),
+                          ),
+                        ),
+                      )
                 : _jadwalHariIni.isEmpty
                     ? Center(
                         child: Column(

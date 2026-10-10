@@ -19,6 +19,21 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
   bool _isLoading = true;
   String _pesanError = '';
 
+  double? _parseNilai(dynamic value) {
+    if (value == null) return null;
+    return double.tryParse(value.toString());
+  }
+
+  double _rataRataNilai(Map<String, dynamic> nilai) {
+    final scores = [
+      _parseNilai(nilai['nilai_tugas']),
+      _parseNilai(nilai['nilai_uts']),
+      _parseNilai(nilai['nilai_uas']),
+    ].whereType<double>().toList();
+    if (scores.isEmpty) return 0;
+    return scores.reduce((total, score) => total + score) / scores.length;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -94,16 +109,13 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                     ),
                     // Perulangan Data Nilai dari Server masuk ke Tabel PDF
                     ..._listRapor.map((nilai) {
-                      double rataRata = ((int.tryParse(nilai['nilai_tugas'].toString()) ?? 0) +
-                              (int.tryParse(nilai['nilai_uts'].toString()) ?? 0) +
-                              (int.tryParse(nilai['nilai_uas'].toString()) ?? 0)) /
-                          3;
+                      final rataRata = _rataRataNilai(Map<String, dynamic>.from(nilai));
                       return pw.TableRow(
                         children: [
                           pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(nilai['mata_pelajaran'] ?? '-', style: const pw.TextStyle(fontSize: 10))),
-                          pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(nilai['nilai_tugas'].toString(), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center)),
-                          pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(nilai['nilai_uts'].toString(), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center)),
-                          pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(nilai['nilai_uas'].toString(), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center)),
+                          pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text((nilai['nilai_tugas'] ?? '-').toString(), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center)),
+                          pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text((nilai['nilai_uts'] ?? '-').toString(), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center)),
+                          pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text((nilai['nilai_uas'] ?? '-').toString(), style: const pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center)),
                           pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(rataRata.toStringAsFixed(1), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10), textAlign: pw.TextAlign.center)),
                         ],
                       );
@@ -185,10 +197,7 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                         final nilai = _listRapor[index];
                         
                         // Perbaikan total bug null-safety konversi nilai rapor
-                        double rataRata = ((int.tryParse(nilai['nilai_tugas'].toString()) ?? 0) +
-                                (int.tryParse(nilai['nilai_uts'].toString()) ?? 0) +
-                                (int.tryParse(nilai['nilai_uas'].toString()) ?? 0)) /
-                            3;
+                        final rataRata = _rataRataNilai(Map<String, dynamic>.from(nilai));
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 16),
@@ -234,9 +243,9 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                                       children: [
-                                        _buildItemNilai('Tugas', nilai['nilai_tugas'].toString()),
-                                        _buildItemNilai('UTS', nilai['nilai_uts'].toString()),
-                                        _buildItemNilai('UAS', nilai['nilai_uas'].toString()),
+                                        _buildItemNilai('Tugas', (nilai['nilai_tugas'] ?? '-').toString()),
+                                        _buildItemNilai('UTS', (nilai['nilai_uts'] ?? '-').toString()),
+                                        _buildItemNilai('UAS', (nilai['nilai_uas'] ?? '-').toString()),
                                       ],
                                     ),
                                     if (nilai['keterangan'] != null && nilai['keterangan'].toString().isNotEmpty) ...[

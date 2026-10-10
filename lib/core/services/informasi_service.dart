@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
 
 class InformasiService {
-  // Catatan TA: Menggunakan localhost untuk emulator laptop Anda
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   // 1. Ambil data lini masa berita acara (GET)
   static Future<Map<String, dynamic>> ambilAcara() async {

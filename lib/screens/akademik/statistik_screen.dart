@@ -24,12 +24,12 @@ class _StatistikScreenState extends State<StatistikScreen> {
   bool _isLoading = false;
   
   Map<String, dynamic> _dataStatistik = {
-    "Kelas 1": {"Semester 1": 0.0, "Semester 2": 0.0},
-    "Kelas 2": {"Semester 1": 0.0, "Semester 2": 0.0},
-    "Kelas 3": {"Semester 1": 0.0, "Semester 2": 0.0},
-    "Kelas 4": {"Semester 1": 0.0, "Semester 2": 0.0},
-    "Kelas 5": {"Semester 1": 0.0, "Semester 2": 0.0},
-    "Kelas 6": {"Semester 1": 0.0, "Semester 2": 0.0}
+    "Kelas 1": {"semester_1": 0.0, "semester_2": 0.0},
+    "Kelas 2": {"semester_1": 0.0, "semester_2": 0.0},
+    "Kelas 3": {"semester_1": 0.0, "semester_2": 0.0},
+    "Kelas 4": {"semester_1": 0.0, "semester_2": 0.0},
+    "Kelas 5": {"semester_1": 0.0, "semester_2": 0.0},
+    "Kelas 6": {"semester_1": 0.0, "semester_2": 0.0}
   };
 
   @override
@@ -120,8 +120,8 @@ class _StatistikScreenState extends State<StatistikScreen> {
 
     if (!isAdmin && !isGuruKelasIni) return const SizedBox.shrink();
 
-    double sem1 = double.tryParse(_dataStatistik[namaKelas]?['Semester 1']?.toString() ?? '0.0') ?? 0.0;
-    double sem2 = double.tryParse(_dataStatistik[namaKelas]?['Semester 2']?.toString() ?? '0.0') ?? 0.0;
+    double sem1 = double.tryParse(_dataStatistik[namaKelas]?['semester_1']?.toString() ?? '0.0') ?? 0.0;
+    double sem2 = double.tryParse(_dataStatistik[namaKelas]?['semester_2']?.toString() ?? '0.0') ?? 0.0;
     
     double selisih = (sem2 - sem1).abs();
     bool isNaik = sem2 >= sem1;

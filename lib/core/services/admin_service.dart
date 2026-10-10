@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
 
 class AdminService {
-  // Base URL server lokal XAMPP Anda
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   // Fungsi khusus untuk menarik seluruh data pengguna sekolah (Admin, Guru, Siswa)
   static Future<Map<String, dynamic>> ambilSemuaPengguna() async {
