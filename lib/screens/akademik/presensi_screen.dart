@@ -259,6 +259,113 @@ class _PresensiScreenState extends State<PresensiScreen> {
     );
   }
 
+  int _jumlahStatus(String status) {
+    if (_isPengisi) {
+      return _statusSiswa.values.where((value) => value == status).length;
+    }
+    return _riwayat.where((row) => row['status']?.toString() == status).length;
+  }
+
+  Widget _buildBanner({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, Color(0xFF23865B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(17),
+            ),
+            child: Icon(icon, color: Colors.white, size: 28),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusSummary() {
+    const statuses = ['Hadir', 'Sakit', 'Izin', 'Alpa'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Row(
+        children: statuses.map((status) {
+          final color = _warnaStatus(status);
+          return Expanded(
+            child: Container(
+              margin: EdgeInsets.only(right: status == statuses.last ? 0 : 8),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: color.withValues(alpha: 0.22)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '${_jumlahStatus(status)}',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    status,
+                    style: TextStyle(color: _mutedColor, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -314,83 +421,202 @@ class _PresensiScreenState extends State<PresensiScreen> {
   Widget _buildFormPresensi() {
     return Column(
       children: [
+        _buildBanner(
+          title: 'Presensi Kelas',
+          subtitle: '$_kelasDipilih • Catat kehadiran hari ini',
+          icon: Icons.fact_check_rounded,
+        ),
         _buildFilterPanel(allowClassSelection: false),
+        _buildStatusSummary(),
         Expanded(
           child: _siswa.isEmpty
               ? Center(
-                  child: Text(
-                    'Belum ada siswa aktif di $_kelasDipilih.',
-                    style: TextStyle(color: _mutedColor),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.groups_2_outlined,
+                        color: _mutedColor,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Belum ada siswa aktif di $_kelasDipilih.',
+                        style: TextStyle(color: _mutedColor),
+                      ),
+                    ],
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   itemCount: _siswa.length,
                   itemBuilder: (context, index) {
                     final student = _siswa[index];
                     final studentId = student['id'].toString();
-                    return Card(
-                      color: _cardColor,
+                    final name = student['nama_lengkap']?.toString() ?? 'Siswa';
+                    final status = _statusSiswa[studentId] ?? 'Hadir';
+                    return Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              student['nama_lengkap']?.toString() ?? 'Siswa',
-                              style: TextStyle(
-                                color: _textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _cardColor,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: _isDark
+                              ? Colors.white.withValues(alpha: 0.07)
+                              : const Color(0xFFE9EEF0),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: _isDark ? 0.08 : 0.035,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'NIS: ${student['nomor_induk'] ?? '-'}',
-                              style: TextStyle(
-                                color: _mutedColor,
-                                fontSize: 12,
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: AppColors.primary.withValues(
+                                  alpha: 0.10,
+                                ),
+                                child: Text(
+                                  name.trim().isEmpty
+                                      ? 'S'
+                                      : name.trim()[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              initialValue: _statusSiswa[studentId] ?? 'Hadir',
-                              decoration: const InputDecoration(
-                                labelText: 'Status kehadiran',
-                                isDense: true,
-                                border: OutlineInputBorder(),
-                              ),
-                              items: _statusPresensi
-                                  .map(
-                                    (status) => DropdownMenuItem(
-                                      value: status,
-                                      child: Text(status),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: TextStyle(
+                                        color: _textColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
                                     ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setState(
-                                    () => _statusSiswa[studentId] = value,
-                                  );
-                                }
-                              },
-                            ),
-                            if (_statusSiswa[studentId] == 'Sakit' ||
-                                _statusSiswa[studentId] == 'Izin') ...[
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _controllerCatatan(studentId),
-                                maxLength: 200,
-                                decoration: const InputDecoration(
-                                  labelText: 'Catatan (opsional)',
-                                  isDense: true,
-                                  border: OutlineInputBorder(),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      'NIS ${student['nomor_induk'] ?? '-'}',
+                                      style: TextStyle(
+                                        color: _mutedColor,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _warnaStatus(
+                                    status,
+                                  ).withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    color: _warnaStatus(status),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'STATUS KEHADIRAN',
+                            style: TextStyle(
+                              color: _mutedColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 7,
+                            runSpacing: 4,
+                            children: _statusPresensi.map((option) {
+                              final selected = status == option;
+                              final color = _warnaStatus(option);
+                              return ChoiceChip(
+                                label: Text(option),
+                                selected: selected,
+                                showCheckmark: false,
+                                avatar: Icon(
+                                  _ikonStatus(option),
+                                  size: 15,
+                                  color: selected ? color : _mutedColor,
+                                ),
+                                labelStyle: TextStyle(
+                                  color: selected ? color : _mutedColor,
+                                  fontWeight: selected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  fontSize: 12,
+                                ),
+                                backgroundColor: _isDark
+                                    ? const Color(0xFF263942)
+                                    : const Color(0xFFF4F7F6),
+                                selectedColor: color.withValues(alpha: 0.13),
+                                side: BorderSide(
+                                  color: selected
+                                      ? color.withValues(alpha: 0.45)
+                                      : Colors.transparent,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
+                                onSelected: (_) {
+                                  setState(
+                                    () => _statusSiswa[studentId] = option,
+                                  );
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          if (status == 'Sakit' || status == 'Izin') ...[
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: _controllerCatatan(studentId),
+                              maxLength: 200,
+                              decoration: InputDecoration(
+                                labelText: 'Catatan (opsional)',
+                                prefixIcon: const Icon(Icons.notes_rounded),
+                                isDense: true,
+                                filled: true,
+                                fillColor: _isDark
+                                    ? const Color(0xFF263942)
+                                    : const Color(0xFFF8FAF9),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(13),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
                           ],
-                        ),
+                        ],
                       ),
                     );
                   },
@@ -398,8 +624,18 @@ class _PresensiScreenState extends State<PresensiScreen> {
         ),
         SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            decoration: BoxDecoration(
+              color: _cardColor,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -413,12 +649,16 @@ class _PresensiScreenState extends State<PresensiScreen> {
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.save_outlined),
+                    : const Icon(Icons.save_rounded),
                 label: Text(_isSaving ? 'Menyimpan...' : 'Simpan Presensi'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
                 ),
               ),
             ),
@@ -429,81 +669,155 @@ class _PresensiScreenState extends State<PresensiScreen> {
   }
 
   Widget _buildFilterPanel({required bool allowClassSelection}) {
-    return Card(
-      color: _cardColor,
-      margin: const EdgeInsets.all(16),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (allowClassSelection) ...[
-              DropdownButtonFormField<String>(
-                initialValue: _kelasDipilih,
-                decoration: const InputDecoration(
-                  labelText: 'Filter kelas',
-                  border: OutlineInputBorder(),
-                  isDense: true,
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: _isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : const Color(0xFFE9EEF0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (allowClassSelection) ...[
+            DropdownButtonFormField<String>(
+              initialValue: _kelasDipilih,
+              decoration: InputDecoration(
+                labelText: 'Filter kelas',
+                prefixIcon: const Icon(Icons.meeting_room_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(13),
                 ),
-                items: [
-                  const DropdownMenuItem(value: '', child: Text('Semua kelas')),
-                  ..._kelas.map(
-                    (kelas) =>
-                        DropdownMenuItem(value: kelas, child: Text(kelas)),
-                  ),
-                ].toList(),
-                onChanged: (value) async {
-                  if (value == null) return;
-                  setState(() => _kelasDipilih = value);
-                  await _muatData();
-                },
+                isDense: true,
               ),
-              const SizedBox(height: 10),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('Semua kelas')),
+                ..._kelas.map(
+                  (kelas) => DropdownMenuItem(value: kelas, child: Text(kelas)),
+                ),
+              ],
+              onChanged: (value) async {
+                if (value == null) return;
+                setState(() => _kelasDipilih = value);
+                await _muatData();
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.calendar_month_rounded,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isGuru ? 'Tanggal presensi' : 'Tanggal riwayat',
+                      style: TextStyle(color: _mutedColor, fontSize: 11),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _isGuru ? 'Hari ini • $_tanggalLabel' : _tanggalLabel,
+                      style: TextStyle(
+                        color: _textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton(
+                onPressed: _pilihTanggal,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(_isGuru ? 'Hari ini' : 'Pilih'),
+              ),
             ],
+          ),
+          if (_isPengisi) ...[
+            const SizedBox(height: 10),
+            Divider(height: 1, color: _mutedColor.withValues(alpha: 0.15)),
+            const SizedBox(height: 9),
             Row(
               children: [
-                Icon(Icons.calendar_today, color: AppColors.primary, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _tanggalLabel,
-                    style: TextStyle(
-                      color: _textColor,
-                      fontWeight: FontWeight.w600,
-                    ),
+                Icon(Icons.groups_outlined, size: 17, color: _mutedColor),
+                const SizedBox(width: 7),
+                Text(
+                  _kelasDipilih,
+                  style: TextStyle(
+                    color: _textColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
                   ),
                 ),
-                OutlinedButton(
-                  onPressed: _pilihTanggal,
-                  child: const Text('Pilih tanggal'),
+                const Spacer(),
+                Text(
+                  '${_siswa.length} siswa',
+                  style: TextStyle(color: _mutedColor, fontSize: 12),
                 ),
               ],
             ),
-            if (_isPengisi) ...[
-              const SizedBox(height: 6),
-              Text(
-                '$_kelasDipilih • ${_siswa.length} siswa',
-                style: TextStyle(color: _mutedColor, fontSize: 12),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildHistory() {
     final filtered = _riwayat;
-
     return Column(
       children: [
+        _buildBanner(
+          title: 'Riwayat Presensi',
+          subtitle: _isAdmin
+              ? 'Pantau kehadiran seluruh kelas'
+              : 'Catatan kehadiran Anda',
+          icon: Icons.fact_check_outlined,
+        ),
         _buildFilterPanel(allowClassSelection: _isAdmin),
+        _buildStatusSummary(),
         Expanded(
           child: filtered.isEmpty
               ? Center(
-                  child: Text(
-                    'Belum ada riwayat presensi.',
-                    style: TextStyle(color: _mutedColor),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.event_note_rounded,
+                        color: _mutedColor,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Belum ada riwayat presensi.',
+                        style: TextStyle(color: _mutedColor),
+                      ),
+                    ],
                   ),
                 )
               : ListView.builder(
@@ -512,10 +826,23 @@ class _PresensiScreenState extends State<PresensiScreen> {
                   itemBuilder: (context, index) {
                     final row = filtered[index];
                     final status = row['status']?.toString() ?? '-';
-                    return Card(
-                      color: _cardColor,
-                      margin: const EdgeInsets.only(bottom: 8),
+                    final note = row['catatan']?.toString() ?? '';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 9),
+                      decoration: BoxDecoration(
+                        color: _cardColor,
+                        borderRadius: BorderRadius.circular(17),
+                        border: Border.all(
+                          color: _isDark
+                              ? Colors.white.withValues(alpha: 0.07)
+                              : const Color(0xFFE9EEF0),
+                        ),
+                      ),
                       child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 5,
+                        ),
                         leading: CircleAvatar(
                           backgroundColor: _warnaStatus(
                             status,
@@ -532,19 +859,31 @@ class _PresensiScreenState extends State<PresensiScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        subtitle: Text(
-                          '${row['tanggal'] ?? '-'} • ${row['kelas'] ?? '-'}'
-                          '${row['catatan'] == null || row['catatan'].toString().isEmpty ? '' : '\nCatatan: ${row['catatan']}'}',
-                          style: TextStyle(color: _mutedColor),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            '${row['tanggal'] ?? '-'} • ${row['kelas'] ?? '-'}'
+                            '${note.isEmpty ? '' : '\nCatatan: $note'}',
+                            style: TextStyle(color: _mutedColor, height: 1.4),
+                          ),
                         ),
-                        isThreeLine:
-                            row['catatan'] != null &&
-                            row['catatan'].toString().isNotEmpty,
-                        trailing: Text(
-                          status,
-                          style: TextStyle(
-                            color: _warnaStatus(status),
-                            fontWeight: FontWeight.bold,
+                        isThreeLine: note.isNotEmpty,
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _warnaStatus(status).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            status,
+                            style: TextStyle(
+                              color: _warnaStatus(status),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
                           ),
                         ),
                       ),
