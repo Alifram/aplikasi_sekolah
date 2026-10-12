@@ -65,40 +65,52 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     // 🌍 FUNGSI AMBIL LIVE DATA USER ROLE GURU (VERSI BEBAS BLOKIR)
   Future<void> _ambilDaftarGuruDariDatabase() async {
     try {
-      final url = Uri.parse('http://localhost/api_sekolah/get_users.php');
-      final response = await http.get(url).timeout(const Duration(seconds: 5));
-      
+      final url = Uri.parse(
+        'http://localhost/api_sekolah/get_guru.php',
+      );
+
+      final response = await http
+          .get(url)
+          .timeout(const Duration(seconds: 5));
+
       if (response.statusCode == 200) {
-        final Map<String, dynamic> dataRespon = json.decode(response.body);
-        if (dataRespon['status'] == 'success' && dataRespon['data'] != null) {
-          final List<dynamic> daftarUserMentah = dataRespon['data'];
-          final List<String> penampungGuruAsli = [];
-          
-          for (var item in daftarUserMentah) {
-            // Mengambil text role dan nama lengkap apa adanya dari database Anda
-            final String roleUser = (item['role'] ?? '').toString().trim().toLowerCase();
-            final String namaUser = (item['nama_lengkap'] ?? '').toString().trim();
-            
-            // 💡 FILTERSEDERHANA: Langsung ambil jika role-nya mengandung kata 'guru'
-            if (roleUser.contains('guru') && namaUser.isNotEmpty) {
-              if (!penampungGuruAsli.contains(namaUser)) {
-                penampungGuruAsli.add(namaUser);
-              }
+        final Map<String, dynamic> dataRespon =
+            json.decode(response.body);
+
+        if (dataRespon['status'] == 'success' &&
+            dataRespon['data'] != null) {
+          final List<dynamic> daftarGuru =
+              dataRespon['data'];
+
+          final List<String> daftarNamaGuru = [];
+
+          for (var guru in daftarGuru) {
+            final String namaGuru =
+                (guru['nama_lengkap'] ?? '').toString().trim();
+
+            if (namaGuru.isNotEmpty &&
+                !daftarNamaGuru.contains(namaGuru)) {
+              daftarNamaGuru.add(namaGuru);
             }
           }
-          
-          setState(() {
-            _listNamaGuruResmi = penampungGuruAsli;
-          });
+
+          if (mounted) {
+            setState(() {
+              _listNamaGuruResmi = daftarNamaGuru;
+            });
+          }
         }
       }
     } catch (e) {
-      debugPrint('Kendala pembacaan daftar guru: $e');
+      debugPrint(
+        'Kendala pembacaan daftar guru: $e',
+      );
     } finally {
-      // 🌟 KUNCI UTAMA: Memastikan loading PASTI selesai (false) agar kunci abu-abu dropdown terbuka!
-      setState(() {
-        _isGuruLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGuruLoading = false;
+        });
+      }
     }
   }
   // 🌍 FUNGSI AMBIL DATA JADWAL (GET)
@@ -384,51 +396,79 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
 
                       // 🌟 DROPDOWN LIVE AKUN GURU DARI DATABASE (ANTI-TYPO & AMAN)
                       _isGuruLoading
-                          ? const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12.0),
-                              child: Row(
-                                children: [
-                                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
-                                  SizedBox(width: 12),
-                                  Text('Menghubungkan live data akun guru...', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                ],
+                      ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.primary,
                               ),
-                            )
-                          : DropdownButtonFormField<String>(
-                              value: _guruTerpilih,
-                              dropdownColor: warnaKotakKartu,
-                              style: TextStyle(color: warnaTeksUtama),
-                              decoration: InputDecoration(
-                                labelText: 'Nama Guru Pengampu / Pengajar',
-                                labelStyle: TextStyle(color: warnaTeksMuted),
-                                prefixIcon: Icon(Icons.person_rounded, color: warnaTeksMuted),
-                                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: warnaGarisPinggir)),
-                                border: const OutlineInputBorder(),
-                              ),
-                              // 🌟 PERBAIKAN MUTLAK: Jika data dari API belum masuk, sediakan item dummy agar dropdown TIDAK TERKUNCI (LOCK ABU-ABU)
-                              items: _listNamaGuruResmi.isEmpty
-                                  ? [
-                                      DropdownMenuItem<String>(
-                                        value: null,
-                                        child: Text(
-                                          "Memuat data guru / periksa koneksi...",
-                                          style: TextStyle(color: warnaTeksMuted, fontStyle: FontStyle.italic, fontSize: 13),
-                                        ),
-                                      )
-                                    ]
-                                  : _listNamaGuruResmi.map((String namaGuru) {
-                                      return DropdownMenuItem<String>(
-                                        value: namaGuru,
-                                        child: Text(namaGuru, style: TextStyle(color: warnaTeksUtama), overflow: TextOverflow.ellipsis),
-                                      );
-                                    }).toList(),
-                              // 🌟 JARING PENGAMAN: Mencegah error jika nilai terpilih tidak ada di list item dummy
-                              onChanged: _listNamaGuruResmi.isEmpty 
-                                  ? null 
-                                  : (v) => setState(() => _guruTerpilih = v),
-                              validator: (v) => v == null ? 'Nama guru pengajar wajib dipilih' : null,
                             ),
-                      const SizedBox(height: 16),
+                            SizedBox(width: 12),
+                            Text(
+                              'Menghubungkan data akun guru...',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : DropdownButtonFormField<String>(
+                        value: _guruTerpilih,
+                        isExpanded: true,
+                        dropdownColor: warnaKotakKartu,
+                        style: TextStyle(
+                          color: warnaTeksUtama,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Nama Guru Pengampu / Pengajar',
+                          labelStyle: TextStyle(
+                            color: warnaTeksMuted,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.person_rounded,
+                            color: warnaTeksMuted,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: warnaGarisPinggir,
+                            ),
+                          ),
+                          border: const OutlineInputBorder(),
+                        ),
+                        items: _listNamaGuruResmi.map<
+                            DropdownMenuItem<String>>((namaGuru) {
+                          return DropdownMenuItem<String>(
+                            value: namaGuru,
+                            child: Text(
+                              namaGuru,
+                              style: TextStyle(
+                                color: warnaTeksUtama,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: _listNamaGuruResmi.isEmpty
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  _guruTerpilih = value;
+                                });
+                              },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Nama guru pengajar wajib dipilih';
+                          }
+                          return null;
+                        },
+                      ),
 
                       // FIELD INPUT TEXT LOKASI RUANGAN KELAS ADAPTIF
                       TextFormField(

@@ -309,8 +309,8 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                             style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                           onPressed: () {
-                            Navigator.pop(context); // Tutup dialog edit utama terlebih dahulu
-                            _tampilkanDialogKonfirmasiHapus(); // Panggil fungsi peringatan bahaya di Part 1
+                            Navigator.pop(context);
+                            _tampilkanDialogKonfirmasiHapus();
                           },
                         ),
                       ),

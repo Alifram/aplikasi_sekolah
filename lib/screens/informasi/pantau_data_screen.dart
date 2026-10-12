@@ -7,12 +7,14 @@ class PantauDataScreen extends StatefulWidget {
   final String? filterKelasOtomatis;
   final String? filterAngkatanOtomatis;
   final bool statusTemaGelap;
+  final String? loginRole;
 
   const PantauDataScreen({
     super.key, 
     this.filterKelasOtomatis, 
     this.filterAngkatanOtomatis,
     required this.statusTemaGelap,
+     this.loginRole,
   });
 
   @override

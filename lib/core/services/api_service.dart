@@ -33,32 +33,35 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> ambilStatistikAkademik(String angkatan) async {
+  static Future<Map<String, dynamic>> ambilStatistikAkademik(
+    String angkatan,
+  ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/get_statistik_akademik.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"angkatan": angkatan}),
+      final response = await http.get(
+        Uri.parse(
+          '$baseUrl/get_statistik.php?angkatan=$angkatan',
+        ),
       );
+
+      print("=== STATISTIK API ===");
+      print("URL: ${response.request?.url}");
+      print("Status Code: ${response.statusCode}");
+      print("Response: ${response.body}");
+      print("=====================");
+
       return jsonDecode(response.body);
     } catch (e) {
-      return {"status": "error", "message": "Gagal terhubung ke database statistik: $e"};
+      print("=== ERROR STATISTIK ===");
+      print(e);
+      print("======================");
+
+      return {
+        "status": "error",
+        "message": "Gagal terhubung ke database statistik: $e",
+      };
     }
   }
-
-  static Future<Map<String, dynamic>> ambilRaporSiswa(String idSiswa) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/get_rapor_siswa.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"id_siswa": idSiswa}),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {"status": "error", "message": "Gagal terhubung ke database rapor: $e"};
-    }
-  }
-
+  
   static Future<Map<String, dynamic>> ambilRingkasanDashboard() async {
     try {
       final response = await http.post(
