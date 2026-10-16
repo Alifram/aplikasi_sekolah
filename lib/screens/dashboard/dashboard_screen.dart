@@ -410,6 +410,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           MaterialPageRoute(
                             builder: (context) => ManajemenJadwalScreen(
                               statusTemaGelap: widget.statusTemaGelap,
+                              userId: widget.extraData['id'].toString(),
                             ),
                           ),
                         );

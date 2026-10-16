@@ -6,7 +6,12 @@ import 'package:aplikasi_sekolah/core/services/api_config.dart';
 
 class ManajemenJadwalScreen extends StatefulWidget {
   final bool statusTemaGelap;
-  const ManajemenJadwalScreen({super.key, required this.statusTemaGelap});
+  final String userId;
+  const ManajemenJadwalScreen({
+    super.key,
+    required this.statusTemaGelap,
+    required this.userId,
+  });
 
   @override
   State<ManajemenJadwalScreen> createState() => _ManajemenJadwalScreenState();
@@ -18,9 +23,9 @@ class _BaseTimePickerTheme extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: Theme.of(context).copyWith(
-        materialTapTargetSize: MaterialTapTargetSize.padded,
-      ),
+      data: Theme.of(
+        context,
+      ).copyWith(materialTapTargetSize: MaterialTapTargetSize.padded),
       child: child!,
     );
   }
@@ -28,15 +33,18 @@ class _BaseTimePickerTheme extends StatelessWidget {
 
 class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
   final _formKeyJadwal = GlobalKey<FormState>();
-  
-  final TextEditingController _ruanganController = TextEditingController(text: 'Ruang Kelas');
+  final _pageController = ScrollController();
+  final TextEditingController _ruanganController = TextEditingController(
+    text: 'Ruang Kelas',
+  );
   String? _mapelTerpilih;
-  
+  int? _jadwalEditId;
+
   // 🌟 VARIABEL SINKRONISASI DROPDOWN GURU DARI LIVE DATABASE
   String? _guruTerpilih;
   List<String> _listNamaGuruResmi = [];
   bool _isGuruLoading = true;
-  
+
   TimeOfDay _jamMulai = const TimeOfDay(hour: 07, minute: 00);
   TimeOfDay _jamSelesai = const TimeOfDay(hour: 08, minute: 30);
 
@@ -44,42 +52,77 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
   String _hariTerpilih = 'Senin';
   List<dynamic> _listJadwalAktif = [];
   bool _isJadwalLoading = false;
+  String _jadwalError = '';
 
   final List<String> _daftarMapelMadrasah = [
-    'Al-Qur\'an Hadis', 'Akidah Akhlak', 'Fikih', 'Sejarah Kebudayaan Islam (SKI)',
-    'Bahasa Arab', 'Bahasa Indonesia', 'Matematika', 'Ilmu Pengetahuan Alam dan Sosial (IPAS)',
-    'Pendidikan Pancasila (PPKn)', 'Pendidikan Jasmani Olahraga & Kesehatan (PJOK)',
-    'Seni Budaya & Prakarya', 'Bahasa Jawa (Muatan Lokal)'
+    'Al-Qur\'an Hadis',
+    'Akidah Akhlak',
+    'Fikih',
+    'Sejarah Kebudayaan Islam (SKI)',
+    'Bahasa Arab',
+    'Bahasa Indonesia',
+    'Matematika',
+    'Ilmu Pengetahuan Alam dan Sosial (IPAS)',
+    'Pendidikan Pancasila (PPKn)',
+    'Pendidikan Jasmani Olahraga & Kesehatan (PJOK)',
+    'Seni Budaya & Prakarya',
+    'Bahasa Jawa (Muatan Lokal)',
   ];
 
-  final List<String> _daftarKelas = ['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'];
-  final List<String> _daftarHari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  final List<String> _daftarKelas = [
+    'Kelas 1',
+    'Kelas 2',
+    'Kelas 3',
+    'Kelas 4',
+    'Kelas 5',
+    'Kelas 6',
+  ];
+  final List<String> _daftarHari = [
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+  ];
 
-    @override
+  @override
   void initState() {
     super.initState();
-      _ambilDaftarGuruDariDatabase().then((_) {
+    _ambilDaftarGuruDariDatabase().then((_) {
       _ambilJadwalDariDatabase();
     });
   }
 
-    // 🌍 FUNGSI AMBIL LIVE DATA USER ROLE GURU (VERSI BEBAS BLOKIR)
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _ruanganController.dispose();
+    super.dispose();
+  }
+
+  // 🌍 FUNGSI AMBIL LIVE DATA USER ROLE GURU (VERSI BEBAS BLOKIR)
   Future<void> _ambilDaftarGuruDariDatabase() async {
     try {
       final url = Uri.parse('${ApiConfig.baseUrl}/get_users.php');
       final response = await http.get(url).timeout(const Duration(seconds: 5));
-      
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> dataRespon = json.decode(response.body);
         if (dataRespon['status'] == 'success' && dataRespon['data'] != null) {
           final List<dynamic> daftarUserMentah = dataRespon['data'];
           final List<String> penampungGuruAsli = [];
-          
+
           for (var item in daftarUserMentah) {
             // Mengambil text role dan nama lengkap apa adanya dari database Anda
-            final String roleUser = (item['role'] ?? '').toString().trim().toLowerCase();
-            final String namaUser = (item['nama_lengkap'] ?? '').toString().trim();
-            
+            final String roleUser = (item['role'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final String namaUser = (item['nama_lengkap'] ?? '')
+                .toString()
+                .trim();
+
             // 💡 FILTERSEDERHANA: Langsung ambil jika role-nya mengandung kata 'guru'
             if (roleUser.contains('guru') && namaUser.isNotEmpty) {
               if (!penampungGuruAsli.contains(namaUser)) {
@@ -87,7 +130,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
               }
             }
           }
-          
+
           if (mounted) {
             setState(() {
               _listNamaGuruResmi = penampungGuruAsli;
@@ -106,89 +149,261 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       }
     }
   }
+
   // 🌍 FUNGSI AMBIL DATA JADWAL (GET)
   Future<void> _ambilJadwalDariDatabase() async {
     setState(() => _isJadwalLoading = true);
+    _jadwalError = '';
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/get_jadwal_by_kelas.php').replace(
-        queryParameters: {'kelas': _kelasTerpilih, 'hari': _hariTerpilih},
-      );
-      final response = await http.get(url);
-      
-      if (response.statusCode == 200) {
-        final dataRespon = json.decode(response.body);
-        if (dataRespon['status'] == 'success' && mounted) {
-          setState(() {
-            _listJadwalAktif = dataRespon['data'] ?? [];
-          });
-        }
+      final url = Uri.parse('${ApiConfig.baseUrl}/get_jadwal_by_kelas.php')
+          .replace(
+            queryParameters: {'kelas': _kelasTerpilih, 'hari': _hariTerpilih},
+          );
+      final response = await http.get(url).timeout(const Duration(seconds: 15));
+      final decoded = json.decode(response.body);
+      if (response.statusCode != 200 || decoded is! Map<String, dynamic>) {
+        throw const FormatException('Respons server jadwal tidak valid.');
+      }
+      if (decoded['status'] != 'success' || decoded['data'] is! List) {
+        throw Exception(decoded['message'] ?? 'Gagal memuat jadwal.');
+      }
+      if (mounted) {
+        setState(() => _listJadwalAktif = decoded['data'] as List<dynamic>);
       }
     } catch (e) {
-      debugPrint('Gagal memuat jadwal: $e');
+      if (mounted) {
+        setState(() {
+          _jadwalError = 'Gagal memuat jadwal: $e';
+          _listJadwalAktif = [];
+        });
+      }
     } finally {
       if (mounted) setState(() => _isJadwalLoading = false);
+    }
+  }
+
+  TimeOfDay _parseTime(dynamic value, TimeOfDay fallback) {
+    final parts = (value ?? '').toString().split(':');
+    if (parts.length < 2) return fallback;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null || hour > 23 || minute > 59) {
+      return fallback;
+    }
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  void _mulaiEditJadwal(Map<String, dynamic> jadwal) {
+    final id = int.tryParse(jadwal['id']?.toString() ?? '');
+    final kelas = jadwal['kelas']?.toString() ?? '';
+    final hari = jadwal['hari']?.toString() ?? '';
+    final mapel = jadwal['mata_pelajaran']?.toString() ?? '';
+    final guru = jadwal['guru_pengampu']?.toString() ?? '';
+    if (id == null ||
+        !_daftarKelas.contains(kelas) ||
+        !_daftarHari.contains(hari)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data jadwal tidak lengkap untuk diedit.'),
+        ),
+      );
+      return;
+    }
+    if (mapel.isNotEmpty && !_daftarMapelMadrasah.contains(mapel)) {
+      _daftarMapelMadrasah.add(mapel);
+    }
+    if (guru.isNotEmpty && !_listNamaGuruResmi.contains(guru)) {
+      _listNamaGuruResmi.add(guru);
+    }
+    setState(() {
+      _jadwalEditId = id;
+      _kelasTerpilih = kelas;
+      _hariTerpilih = hari;
+      _jamMulai = _parseTime(jadwal['jam_mulai'], _jamMulai);
+      _jamSelesai = _parseTime(jadwal['jam_selesai'], _jamSelesai);
+      _mapelTerpilih = mapel.isEmpty ? null : mapel;
+      _guruTerpilih = guru.isEmpty ? null : guru;
+      _ruanganController.text = jadwal['ruangan']?.toString() ?? '';
+    });
+    _pageController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _resetFormJadwal() {
+    setState(() {
+      _jadwalEditId = null;
+      _mapelTerpilih = null;
+      _guruTerpilih = null;
+      _ruanganController.text = 'Ruang Kelas';
+      _jamMulai = const TimeOfDay(hour: 7, minute: 0);
+      _jamSelesai = const TimeOfDay(hour: 8, minute: 30);
+    });
+  }
+
+  Future<void> _hapusJadwal(Map<String, dynamic> jadwal) async {
+    final id = int.tryParse(jadwal['id']?.toString() ?? '');
+    if (id == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ID jadwal tidak valid.')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus jadwal?'),
+        content: Text(
+          'Jadwal ${jadwal['mata_pelajaran'] ?? ''} untuk $_kelasTerpilih akan dihapus.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/delete_jadwal.php'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'id': id, 'user_id': widget.userId}),
+          )
+          .timeout(const Duration(seconds: 15));
+      final decoded = json.decode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Respons server tidak valid.');
+      }
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          decoded['status'] != 'success') {
+        throw Exception(decoded['message'] ?? 'Gagal menghapus jadwal.');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(decoded['message'] ?? 'Jadwal dihapus.')),
+      );
+      if (_jadwalEditId == id) _resetFormJadwal();
+      await _ambilJadwalDariDatabase();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus jadwal: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   // 🚀 FUNGSI SIMPAN JADWAL BARU KE TABEL 'jadwal_pelajaran' (POST)
   Future<void> _simpanJadwalKeDatabase() async {
     if (!_formKeyJadwal.currentState!.validate()) return;
+    final startMinutes = _jamMulai.hour * 60 + _jamMulai.minute;
+    final endMinutes = _jamSelesai.hour * 60 + _jamSelesai.minute;
+    if (endMinutes <= startMinutes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Jam selesai harus setelah jam mulai.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     if (_mapelTerpilih == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mohon pilih Mata Pelajaran terlebih dahulu!'), backgroundColor: Colors.amber),
+        const SnackBar(
+          content: Text('Mohon pilih Mata Pelajaran terlebih dahulu!'),
+          backgroundColor: Colors.amber,
+        ),
       );
       return;
     }
     if (_guruTerpilih == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mohon pilih Guru Pengampu terlebih dahulu!'), backgroundColor: Colors.amber),
+        const SnackBar(
+          content: Text('Mohon pilih Guru Pengampu terlebih dahulu!'),
+          backgroundColor: Colors.amber,
+        ),
       );
       return;
     }
 
-    final String formatMulai = '${_jamMulai.hour.toString().padLeft(2, '0')}:${_jamMulai.minute.toString().padLeft(2, '0')}:00';
-    final String formatSelesai = '${_jamSelesai.hour.toString().padLeft(2, '0')}:${_jamSelesai.minute.toString().padLeft(2, '0')}:00';
+    final String formatMulai =
+        '${_jamMulai.hour.toString().padLeft(2, '0')}:${_jamMulai.minute.toString().padLeft(2, '0')}:00';
+    final String formatSelesai =
+        '${_jamSelesai.hour.toString().padLeft(2, '0')}:${_jamSelesai.minute.toString().padLeft(2, '0')}:00';
 
     final dataPayload = {
+      'user_id': widget.userId,
+      if (_jadwalEditId != null) 'id': _jadwalEditId,
       'kelas': _kelasTerpilih,
       'hari': _hariTerpilih,
       'jam_mulai': formatMulai,
       'jam_selesai': formatSelesai,
       'mata_pelajaran': _mapelTerpilih,
-      'guru_pengampu': _guruTerpilih, // 🌟 Mengirim string nama guru terpilih dari Dropdown
+      'guru_pengampu':
+          _guruTerpilih, // 🌟 Mengirim string nama guru terpilih dari Dropdown
       'ruangan': _ruanganController.text.trim(),
     };
 
     try {
       final url = Uri.parse('${ApiConfig.baseUrl}/save_jadwal.php');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(dataPayload),
-      );
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(dataPayload),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
       final dataRespon = json.decode(response.body);
-      if (dataRespon['status'] == 'success') {
-        setState(() {
-          _mapelTerpilih = null;
-          _guruTerpilih = null; // Reset pilihan dropdown guru
-          _ruanganController.text = 'Ruang Kelas';
-        });
-        
+      if (dataRespon is Map<String, dynamic> &&
+          response.statusCode >= 200 &&
+          response.statusCode < 300 &&
+          dataRespon['status'] == 'success') {
+        final message =
+            dataRespon['message']?.toString() ??
+            (_jadwalEditId == null
+                ? 'Jadwal berhasil disimpan.'
+                : 'Jadwal berhasil diperbarui.');
+        _resetFormJadwal();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(dataRespon['message']), backgroundColor: Colors.green),
+          SnackBar(content: Text(message), backgroundColor: Colors.green),
         );
-        _ambilJadwalDariDatabase(); // Refresh daftar setelah sukses
+        await _ambilJadwalDariDatabase();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(dataRespon['message'] ?? 'Gagal menyimpan'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(
+              dataRespon is Map<String, dynamic>
+                  ? dataRespon['message']?.toString() ??
+                        'Gagal menyimpan jadwal.'
+                  : 'Respons server tidak valid.',
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Terjadi kesalahan koneksi server: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Terjadi kesalahan koneksi server: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -231,27 +446,43 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       });
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = widget.statusTemaGelap;
-    final Color warnaLatarHalaman = isDark ? const Color(0xFF0B141A) : const Color(0xFFF8FAFC);
-    final Color warnaKotakKartu = isDark ? const Color(0xFF1C2D35) : Colors.white;
+    final Color warnaLatarHalaman = isDark
+        ? const Color(0xFF0B141A)
+        : const Color(0xFFF8FAFC);
+    final Color warnaKotakKartu = isDark
+        ? const Color(0xFF1C2D35)
+        : Colors.white;
     final Color warnaTeksUtama = isDark ? Colors.white : Colors.black87;
     final Color warnaTeksSub = isDark ? Colors.white70 : Colors.grey.shade700;
     final Color warnaTeksMuted = isDark ? Colors.white60 : Colors.grey;
-    final Color warnaGarisPinggir = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
-    final Color warnaIconForm = isDark ? Colors.amber.shade400 : AppColors.primary;
+    final Color warnaGarisPinggir = isDark
+        ? Colors.grey.shade700
+        : Colors.grey.shade300;
+    final Color warnaIconForm = isDark
+        ? Colors.amber.shade400
+        : AppColors.primary;
 
     return Scaffold(
       backgroundColor: warnaLatarHalaman,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Atur Jadwal Pelajaran',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
         backgroundColor: AppColors.primary,
         elevation: 0,
@@ -277,11 +508,19 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.add_card_rounded, color: warnaIconForm, size: 20),
+                          Icon(
+                            Icons.add_card_rounded,
+                            color: warnaIconForm,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Tambah Slot Jadwal Baru',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: warnaTeksUtama),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: warnaTeksUtama,
+                            ),
                           ),
                         ],
                       ),
@@ -298,11 +537,21 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                               decoration: InputDecoration(
                                 labelText: 'Tingkat Kelas',
                                 labelStyle: TextStyle(color: warnaTeksMuted),
-                                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: warnaGarisPinggir)),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: warnaGarisPinggir,
+                                  ),
+                                ),
                                 border: const OutlineInputBorder(),
                               ),
                               items: _daftarKelas.map((String k) {
-                                return DropdownMenuItem(value: k, child: Text(k, style: TextStyle(color: warnaTeksUtama)));
+                                return DropdownMenuItem(
+                                  value: k,
+                                  child: Text(
+                                    k,
+                                    style: TextStyle(color: warnaTeksUtama),
+                                  ),
+                                );
                               }).toList(),
                               onChanged: (v) {
                                 if (v != null) {
@@ -321,14 +570,25 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                               decoration: InputDecoration(
                                 labelText: 'Hari Belajar',
                                 labelStyle: TextStyle(color: warnaTeksMuted),
-                                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: warnaGarisPinggir)),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: warnaGarisPinggir,
+                                  ),
+                                ),
                                 border: const OutlineInputBorder(),
                               ),
                               items: _daftarHari.map((String h) {
-                                return DropdownMenuItem(value: h, child: Text(h, style: TextStyle(color: warnaTeksUtama)));
+                                return DropdownMenuItem(
+                                  value: h,
+                                  child: Text(
+                                    h,
+                                    style: TextStyle(color: warnaTeksUtama),
+                                  ),
+                                );
                               }).toList(),
                               onChanged: (v) {
-                                if (v != null) setState(() => _hariTerpilih = v);
+                                if (v != null)
+                                  setState(() => _hariTerpilih = v);
                               },
                             ),
                           ),
@@ -342,12 +602,23 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                           Expanded(
                             child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 side: BorderSide(color: warnaGarisPinggir),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                              icon: Icon(Icons.access_time_rounded, size: 18, color: warnaIconForm),
-                              label: Text('Mulai: ${_jamMulai.format(context)}', style: TextStyle(color: warnaTeksSub)),
+                              icon: Icon(
+                                Icons.access_time_rounded,
+                                size: 18,
+                                color: warnaIconForm,
+                              ),
+                              label: Text(
+                                'Mulai: ${_jamMulai.format(context)}',
+                                style: TextStyle(color: warnaTeksSub),
+                              ),
                               onPressed: () => _pilihWaktuJamMulai(context),
                             ),
                           ),
@@ -355,12 +626,23 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                           Expanded(
                             child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 side: BorderSide(color: warnaGarisPinggir),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                              icon: Icon(Icons.punch_clock_rounded, size: 18, color: warnaIconForm),
-                              label: Text('Selesai: ${_jamSelesai.format(context)}', style: TextStyle(color: warnaTeksSub)),
+                              icon: Icon(
+                                Icons.punch_clock_rounded,
+                                size: 18,
+                                color: warnaIconForm,
+                              ),
+                              label: Text(
+                                'Selesai: ${_jamSelesai.format(context)}',
+                                style: TextStyle(color: warnaTeksSub),
+                              ),
                               onPressed: () => _pilihWaktuJamSelesai(context),
                             ),
                           ),
@@ -376,18 +658,28 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                         decoration: InputDecoration(
                           labelText: 'Pilih Mata Pelajaran',
                           labelStyle: TextStyle(color: warnaTeksMuted),
-                          prefixIcon: Icon(Icons.book_rounded, color: warnaTeksMuted),
-                          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: warnaGarisPinggir)),
+                          prefixIcon: Icon(
+                            Icons.book_rounded,
+                            color: warnaTeksMuted,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: warnaGarisPinggir),
+                          ),
                           border: const OutlineInputBorder(),
                         ),
                         items: _daftarMapelMadrasah.map((String mapel) {
                           return DropdownMenuItem(
                             value: mapel,
-                            child: Text(mapel, style: TextStyle(color: warnaTeksUtama), overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              mapel,
+                              style: TextStyle(color: warnaTeksUtama),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           );
                         }).toList(),
                         onChanged: (v) => setState(() => _mapelTerpilih = v),
-                        validator: (v) => v == null ? 'Mata pelajaran wajib dipilih' : null,
+                        validator: (v) =>
+                            v == null ? 'Mata pelajaran wajib dipilih' : null,
                       ),
                       const SizedBox(height: 16),
 
@@ -397,9 +689,22 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                               padding: EdgeInsets.symmetric(vertical: 12.0),
                               child: Row(
                                 children: [
-                                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
                                   SizedBox(width: 12),
-                                  Text('Menghubungkan live data akun guru...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text(
+                                    'Menghubungkan live data akun guru...',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
                                 ],
                               ),
                             )
@@ -410,8 +715,15 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                               decoration: InputDecoration(
                                 labelText: 'Nama Guru Pengampu / Pengajar',
                                 labelStyle: TextStyle(color: warnaTeksMuted),
-                                prefixIcon: Icon(Icons.person_rounded, color: warnaTeksMuted),
-                                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: warnaGarisPinggir)),
+                                prefixIcon: Icon(
+                                  Icons.person_rounded,
+                                  color: warnaTeksMuted,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: warnaGarisPinggir,
+                                  ),
+                                ),
                                 border: const OutlineInputBorder(),
                               ),
                               // 🌟 PERBAIKAN MUTLAK: Jika data dari API belum masuk, sediakan item dummy agar dropdown TIDAK TERKUNCI (LOCK ABU-ABU)
@@ -421,21 +733,33 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                                         value: null,
                                         child: Text(
                                           "Memuat data guru / periksa koneksi...",
-                                          style: TextStyle(color: warnaTeksMuted, fontStyle: FontStyle.italic, fontSize: 13),
+                                          style: TextStyle(
+                                            color: warnaTeksMuted,
+                                            fontStyle: FontStyle.italic,
+                                            fontSize: 13,
+                                          ),
                                         ),
-                                      )
+                                      ),
                                     ]
                                   : _listNamaGuruResmi.map((String namaGuru) {
                                       return DropdownMenuItem<String>(
                                         value: namaGuru,
-                                        child: Text(namaGuru, style: TextStyle(color: warnaTeksUtama), overflow: TextOverflow.ellipsis),
+                                        child: Text(
+                                          namaGuru,
+                                          style: TextStyle(
+                                            color: warnaTeksUtama,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       );
                                     }).toList(),
                               // 🌟 JARING PENGAMAN: Mencegah error jika nilai terpilih tidak ada di list item dummy
-                              onChanged: _listNamaGuruResmi.isEmpty 
-                                  ? null 
+                              onChanged: _listNamaGuruResmi.isEmpty
+                                  ? null
                                   : (v) => setState(() => _guruTerpilih = v),
-                              validator: (v) => v == null ? 'Nama guru pengajar wajib dipilih' : null,
+                              validator: (v) => v == null
+                                  ? 'Nama guru pengajar wajib dipilih'
+                                  : null,
                             ),
                       const SizedBox(height: 16),
 
@@ -446,8 +770,13 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                         decoration: InputDecoration(
                           labelText: 'Lokasi Ruangan / Kelas',
                           labelStyle: TextStyle(color: warnaTeksMuted),
-                          prefixIcon: Icon(Icons.room_rounded, color: warnaTeksMuted),
-                          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: warnaGarisPinggir)),
+                          prefixIcon: Icon(
+                            Icons.room_rounded,
+                            color: warnaTeksMuted,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: warnaGarisPinggir),
+                          ),
                           border: const OutlineInputBorder(),
                         ),
                       ),
@@ -460,10 +789,21 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          icon: const Icon(Icons.save_rounded, color: Colors.white),
-                          label: const Text('SIMPAN SLOT JADWAL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          icon: const Icon(
+                            Icons.save_rounded,
+                            color: Colors.white,
+                          ),
+                          label: const Text(
+                            'SIMPAN SLOT JADWAL',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           onPressed: _simpanJadwalKeDatabase,
                         ),
                       ),
@@ -479,10 +819,18 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
               children: [
                 Text(
                   'Tinjauan Jadwal $_kelasTerpilih',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: warnaTeksUtama),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: warnaTeksUtama,
+                  ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.sync_rounded, color: warnaIconForm, size: 20),
+                  icon: Icon(
+                    Icons.sync_rounded,
+                    color: warnaIconForm,
+                    size: 20,
+                  ),
                   onPressed: _ambilJadwalDariDatabase,
                 ),
               ],
@@ -491,7 +839,12 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
 
             // KONDISIONAL RENDER UTAMA DAFTAR SLOT AGENDAL
             if (_isJadwalLoading)
-              const Center(child: Padding(padding: EdgeInsets.all(24.0), child: CircularProgressIndicator(color: AppColors.primary)))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+              )
             else if (_listJadwalAktif.isEmpty)
               Container(
                 width: double.infinity,
@@ -504,7 +857,11 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                 child: Center(
                   child: Text(
                     'Belum ada slot pelajaran diatur untuk $_kelasTerpilih.',
-                    style: TextStyle(fontStyle: FontStyle.italic, color: warnaTeksMuted, fontSize: 13),
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: warnaTeksMuted,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               )
@@ -515,8 +872,12 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                 itemCount: _listJadwalAktif.length,
                 itemBuilder: (context, index) {
                   final jd = _listJadwalAktif[index];
-                  String jamMulai = jd['jam_mulai_format'] ?? (jd['jam_mulai'] ?? '-').toString().substring(0, 5);
-                  String jamSelesai = jd['jam_selesai_format'] ?? (jd['jam_selesai'] ?? '-').toString().substring(0, 5);
+                  String jamMulai =
+                      jd['jam_mulai_format'] ??
+                      (jd['jam_mulai'] ?? '-').toString().substring(0, 5);
+                  String jamSelesai =
+                      jd['jam_selesai_format'] ??
+                      (jd['jam_selesai'] ?? '-').toString().substring(0, 5);
 
                   return Card(
                     color: warnaKotakKartu,
@@ -527,34 +888,56 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                       side: BorderSide(color: warnaGarisPinggir),
                     ),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       leading: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.teal.withOpacity(0.2) : Colors.teal.withOpacity(0.1),
+                          color: isDark
+                              ? Colors.teal.withOpacity(0.2)
+                              : Colors.teal.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.calendar_today_rounded, color: Colors.teal, size: 20),
+                        child: const Icon(
+                          Icons.calendar_today_rounded,
+                          color: Colors.teal,
+                          size: 20,
+                        ),
                       ),
                       title: Row(
                         children: [
                           Expanded(
                             child: Text(
                               jd['mata_pelajaran'] ?? '-',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: warnaTeksUtama),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: warnaTeksUtama,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.blue.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               jd['hari'] ?? '-',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? Colors.blue.shade300 : Colors.blue),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isDark
+                                    ? Colors.blue.shade300
+                                    : Colors.blue,
+                              ),
                             ),
                           ),
                         ],
@@ -566,12 +949,19 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.person_outline_rounded, size: 14, color: warnaTeksMuted),
+                                Icon(
+                                  Icons.person_outline_rounded,
+                                  size: 14,
+                                  color: warnaTeksMuted,
+                                ),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     'Guru: ${jd['guru_pengampu'] ?? '-'}',
-                                    style: TextStyle(color: warnaTeksSub, fontSize: 12),
+                                    style: TextStyle(
+                                      color: warnaTeksSub,
+                                      fontSize: 12,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -580,19 +970,34 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Icon(Icons.schedule_rounded, size: 14, color: warnaTeksMuted),
+                                Icon(
+                                  Icons.schedule_rounded,
+                                  size: 14,
+                                  color: warnaTeksMuted,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '$jamMulai - $jamSelesai WIB',
-                                  style: TextStyle(color: warnaTeksSub, fontSize: 12, fontWeight: FontWeight.w500),
+                                  style: TextStyle(
+                                    color: warnaTeksSub,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
-                                Icon(Icons.meeting_room_outlined, size: 14, color: warnaTeksMuted),
+                                Icon(
+                                  Icons.meeting_room_outlined,
+                                  size: 14,
+                                  color: warnaTeksMuted,
+                                ),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     jd['ruangan'] ?? 'Ruang Kelas',
-                                    style: TextStyle(color: warnaTeksSub, fontSize: 12),
+                                    style: TextStyle(
+                                      color: warnaTeksSub,
+                                      fontSize: 12,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
