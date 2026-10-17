@@ -87,14 +87,32 @@ class AdminService {
       final response = await http.post(
         Uri.parse('$baseUrl/naik_kelas_massal.php'),
         headers: {"Content-Type": "application/json"},
-        // Mengirimkan body kosong karena PHP hanya membutuhkan trigger POST aman
         body: jsonEncode({'user_id': userId}),
       );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return decoded;
+        }
+        return {
+          ...decoded,
+          'status': 'error',
+          'message':
+              decoded['message'] ??
+              'Gagal memproses kenaikan kelas (${response.statusCode}).',
+        };
       }
-      return {'status': 'error', 'message': 'Gagal memproses otomatisasi server (${response.statusCode}).'};
+      return {
+        'status': 'error',
+        'message':
+            'Respons kenaikan kelas tidak valid (${response.statusCode}).',
+      };
+    } on FormatException {
+      return {
+        'status': 'error',
+        'message': 'Server mengirim respons kenaikan kelas yang tidak valid.',
+      };
     } catch (e) {
       return {'status': 'error', 'message': 'Terjadi kegagalan koneksi jaringan: $e'};
     }

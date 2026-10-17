@@ -111,6 +111,7 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
           '⚠️ CATATAN:\n'
           '• Siswa Kelas 6 otomatis lulus menjadi Alumni.\n'
           '• Siswa Kelas 1-5 otomatis naik ke tingkat berikutnya.\n'
+          '• Riwayat nilai rapor siswa tetap tersimpan.\n'
           '• Proses ini tidak dapat dibatalkan secara manual.',
           style: TextStyle(fontSize: 14),
         ),
