@@ -8,9 +8,19 @@ class DashboardService {
   static Future<Map<String, dynamic>> ambilAcaraTerbaru() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/get_events.php'));
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return decoded;
+        }
+        return {
+          ...decoded,
+          'status': 'error',
+          'message': decoded['message'] ?? 'Gagal memuat info acara.',
+        };
       }
+      return {'status': 'error', 'message': 'Format respons event tidak valid.'};
+    } on FormatException {
       return {'status': 'error', 'message': 'Gagal memuat info acara.'};
     } catch (e) {
       return {'status': 'error', 'message': 'Kesalahan jaringan: $e'};

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
 
 class AdminService {
@@ -32,14 +33,19 @@ class AdminService {
     }
   }
 
-  static Future<Map<String, dynamic>> prosesPindahKelas(String userId, String kelasBaru) async {
+  static Future<Map<String, dynamic>> prosesPindahKelas(
+    String adminId,
+    String userId,
+    int kelasId,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/pindah_kelas.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": userId,
-          "kelas_baru": kelasBaru,
+          "admin_id": adminId,
+          "kelas_id_baru": kelasId,
         }),
       );
       if (response.statusCode == 200) {
@@ -73,11 +79,16 @@ class AdminService {
 
   static Future<Map<String, dynamic>> prosesKenaikanKelasMassal() async {
     try {
+      final preferences = await SharedPreferences.getInstance();
+      final userId = preferences.getString('user_id');
+      if (userId == null || userId.isEmpty) {
+        return {'status': 'error', 'message': 'Sesi admin tidak ditemukan.'};
+      }
       final response = await http.post(
         Uri.parse('$baseUrl/naik_kelas_massal.php'),
         headers: {"Content-Type": "application/json"},
         // Mengirimkan body kosong karena PHP hanya membutuhkan trigger POST aman
-        body: jsonEncode({}), 
+        body: jsonEncode({'user_id': userId}),
       );
 
       if (response.statusCode == 200) {

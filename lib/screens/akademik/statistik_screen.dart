@@ -23,14 +23,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
   String _angkatanTerpilih = '2026';
   bool _isLoading = false;
   
-  Map<String, dynamic> _dataStatistik = {
-    "Kelas 1": {"semester_1": 0.0, "semester_2": 0.0},
-    "Kelas 2": {"semester_1": 0.0, "semester_2": 0.0},
-    "Kelas 3": {"semester_1": 0.0, "semester_2": 0.0},
-    "Kelas 4": {"semester_1": 0.0, "semester_2": 0.0},
-    "Kelas 5": {"semester_1": 0.0, "semester_2": 0.0},
-    "Kelas 6": {"semester_1": 0.0, "semester_2": 0.0}
-  };
+  Map<String, dynamic> _dataStatistik = {};
 
   @override
   void initState() {
@@ -99,14 +92,14 @@ class _StatistikScreenState extends State<StatistikScreen> {
                   ListView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _buildBarisStatistikKelas('Kelas 1', warnaKartu, warnaTeksUtama, warnaTeksSub),
-                      _buildBarisStatistikKelas('Kelas 2', warnaKartu, warnaTeksUtama, warnaTeksSub),
-                      _buildBarisStatistikKelas('Kelas 3', warnaKartu, warnaTeksUtama, warnaTeksSub),
-                      _buildBarisStatistikKelas('Kelas 4', warnaKartu, warnaTeksUtama, warnaTeksSub),
-                      _buildBarisStatistikKelas('Kelas 5', warnaKartu, warnaTeksUtama, warnaTeksSub),
-                      _buildBarisStatistikKelas('Kelas 6', warnaKartu, warnaTeksUtama, warnaTeksSub),
-                    ],
+                    children: _dataStatistik.keys
+                        .map((name) => _buildBarisStatistikKelas(
+                              name,
+                              warnaKartu,
+                              warnaTeksUtama,
+                              warnaTeksSub,
+                            ))
+                        .toList(),
                   ),
                 ],
               ),

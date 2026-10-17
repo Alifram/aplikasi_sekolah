@@ -15,7 +15,8 @@ class HomeBannerWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String keteranganKelas = extraData['kelas_diajar'] ?? 'Belum Diatur';
+    String keteranganKelas =
+        extraData['kelas_nama'] ?? extraData['kelas_diajar'] ?? 'Belum Diatur';
 
     return Container(
       width: double.infinity,

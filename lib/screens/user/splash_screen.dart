@@ -39,7 +39,8 @@ class _SplashScreenState extends State<_SplashScreenStateful> {
       final String nomorInduk = prefs.getString('nomor_induk') ?? '';
       final String namaLengkap = prefs.getString('nama_lengkap') ?? 'Pengguna';
       final String role = prefs.getString('role') ?? 'siswa';
-      final String kelasDiajar = prefs.getString('kelas_diajar') ?? 'Belum Diatur';
+      final String kelasNama = prefs.getString('kelas_nama') ?? 'Belum Diatur';
+      final String? kelasId = prefs.getString('kelas_id');
 
       Navigator.pushReplacementNamed(
         context, 
@@ -49,7 +50,9 @@ class _SplashScreenState extends State<_SplashScreenStateful> {
           "nomor_induk": nomorInduk,
           "nama_lengkap": namaLengkap,
           "role": role,
-          "kelas_diajar": kelasDiajar,
+          "kelas_nama": kelasNama,
+          "kelas_id": kelasId,
+          "kelas_diajar": kelasNama,
         },
       );
     } else {

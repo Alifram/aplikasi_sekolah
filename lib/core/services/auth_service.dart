@@ -29,7 +29,15 @@ class AuthService {
           await prefs.setString('nomor_induk', user['nomor_induk'] ?? '');
           await prefs.setString('nama_lengkap', user['nama_lengkap'] ?? '');
           await prefs.setString('role', user['role'] ?? 'siswa');
-          await prefs.setString('kelas_diajar', user['kelas_diajar'] ?? 'Belum Diatur');
+          if (user['kelas_id'] != null) {
+            await prefs.setString('kelas_id', user['kelas_id'].toString());
+          } else {
+            await prefs.remove('kelas_id');
+          }
+          await prefs.setString(
+            'kelas_nama',
+            user['kelas_nama'] ?? 'Belum Diatur',
+          );
         }
 
         return dataRespon;
@@ -48,10 +56,23 @@ class AuthService {
         body: jsonEncode(dataRegistrasi),
       );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        if (response.statusCode >= 200 &&
+            response.statusCode < 300) {
+          return decoded;
+        }
+        return {
+          ...decoded,
+          'status': 'error',
+          'message': decoded['message'] ??
+              'Pendaftaran gagal (HTTP ${response.statusCode}).',
+        };
       }
-      return {'status': 'error', 'message': 'Gagal terhubung ke server (${response.statusCode})'};
+      return {
+        'status': 'error',
+        'message': 'Respons pendaftaran tidak valid (HTTP ${response.statusCode}).',
+      };
     } catch (e) {
       return {'status': 'error', 'message': 'Terjadi kesalahan jaringan: $e'};
     }

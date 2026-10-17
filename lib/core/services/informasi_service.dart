@@ -5,14 +5,33 @@ import 'api_config.dart';
 class InformasiService {
   static const String baseUrl = ApiConfig.baseUrl;
 
+  static Map<String, dynamic> _decodeResponse(
+    http.Response response,
+    String fallbackMessage,
+  ) {
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return decoded;
+        }
+        return {
+          ...decoded,
+          'status': 'error',
+          'message': decoded['message'] ?? fallbackMessage,
+        };
+      }
+    } on FormatException {
+      return {'status': 'error', 'message': fallbackMessage};
+    }
+    return {'status': 'error', 'message': fallbackMessage};
+  }
+
   // 1. Ambil data lini masa berita acara (GET)
   static Future<Map<String, dynamic>> ambilAcara() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/get_events.php'));
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      return {'status': 'error', 'message': 'Gagal mengambil berita dari server.'};
+      return _decodeResponse(response, 'Gagal mengambil berita dari server.');
     } catch (e) {
       return {'status': 'error', 'message': 'Kesalahan jaringan: $e'};
     }
@@ -26,10 +45,7 @@ class InformasiService {
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(dataAcara),
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      return {'status': 'error', 'message': 'Gagal mengirim pengumuman.'};
+      return _decodeResponse(response, 'Gagal mengirim pengumuman.');
     } catch (e) {
       return {'status': 'error', 'message': 'Kesalahan jaringan: $e'};
     }
@@ -43,10 +59,7 @@ class InformasiService {
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(dataHapus),
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      return {'status': 'error', 'message': 'Gagal menghapus postingan.'};
+      return _decodeResponse(response, 'Gagal menghapus postingan.');
     } catch (e) {
       return {'status': 'error', 'message': 'Kesalahan jaringan: $e'};
     }

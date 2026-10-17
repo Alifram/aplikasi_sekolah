@@ -7,19 +7,22 @@ import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/informasi_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
 import 'package:aplikasi_sekolah/core/services/api_config.dart';
+import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
 
 class EventScreen extends StatefulWidget {
   final String userId;
   final String namaUser;
   final String roleUser;
-  final String? kelasUser;
+  final String? kelasIdUser;
+  final ValueChanged<List<dynamic>>? onEventsChanged;
 
   const EventScreen({
     super.key,
     required this.userId,
     required this.namaUser,
     required this.roleUser,
-    this.kelasUser,
+    this.kelasIdUser,
+    this.onEventsChanged,
   });
 
   @override
@@ -29,11 +32,14 @@ class EventScreen extends StatefulWidget {
 class _EventScreenState extends State<EventScreen> {
   List<dynamic> _listEvents = [];
   bool _isLoading = true;
+  String? _eventError;
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _judulController = TextEditingController();
   final TextEditingController _deskripsiController = TextEditingController();
-  String _selectedTargetKelas = 'Semua Kelas';
+  List<Map<String, dynamic>> _kelas = [];
+  final Set<int> _selectedTargetKelasIds = {};
+  bool _targetSemuaKelas = true;
 
   XFile? _imageFile;
   final ImagePicker _picker = ImagePicker();
@@ -41,7 +47,30 @@ class _EventScreenState extends State<EventScreen> {
   @override
   void initState() {
     super.initState();
+    _muatKelas();
     _panggilDataAcara();
+  }
+
+  Future<void> _muatKelas() async {
+    final response = await KelasService.ambilDaftarKelas();
+    if (!mounted) return;
+    if (response['status'] == 'success' && response['data'] is List) {
+      setState(() {
+        _kelas = (response['data'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response['message']?.toString() ?? 'Gagal memuat daftar kelas.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // AMAN UNTUK TA: Mencegah Memory Leak dengan membuang controller saat halaman ditutup
@@ -54,23 +83,29 @@ class _EventScreenState extends State<EventScreen> {
 
   // LOGIKA BARU: Menjembatani panggilan data ke InformasiService
   Future<void> _panggilDataAcara() async {
-    final res = await DashboardService.ambilAcaraTerbaru();
-    
     if (mounted) {
       setState(() {
-        if (res['status'] == 'success') {
-          // 1. Tampung data mentah dari server MySQL
-          List<dynamic> dataMentah = res['data'] ?? [];
-          
-          // 2. 🌟 SINKRONISASI AKTIF: Panggil filter agar garis kuning hilang total
-          _jalankanFilterBeritaSekolah(dataMentah); 
-      } else {
-        // BYPASS AMAN: Mencetak log error ke terminal debugging tanpa crash layar
-        debugPrint(res['message'] ?? 'Gagal memuat info pengumuman.');
-      }
-        _isLoading = false;
+        _isLoading = true;
+        _eventError = null;
       });
     }
+    final res = await DashboardService.ambilAcaraTerbaru();
+    if (!mounted) return;
+    final rawEvents = res['data'];
+    if (res['status'] == 'success' && rawEvents is List) {
+      setState(() {
+        _jalankanFilterBeritaSekolah(rawEvents);
+        _eventError = null;
+        _isLoading = false;
+      });
+      widget.onEventsChanged?.call(rawEvents);
+      return;
+    }
+    setState(() {
+      _eventError =
+          res['message']?.toString() ?? 'Gagal memuat daftar kegiatan.';
+      _isLoading = false;
+    });
   }
 
 
@@ -96,6 +131,15 @@ class _EventScreenState extends State<EventScreen> {
   // LOGIKA BARU: Mengirim data form dan base64 melalui InformasiService
   Future<void> _tambahAcaraBaru() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_targetSemuaKelas && _selectedTargetKelasIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih minimal satu kelas atau aktifkan semua kelas.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -108,7 +152,8 @@ class _EventScreenState extends State<EventScreen> {
     final dataInput = {
       "judul_acara": _judulController.text.trim(),
       "deskripsi": _deskripsiController.text.trim(),
-      "target_kelas": _selectedTargetKelas,
+      "semua_kelas": _targetSemuaKelas,
+      "kelas_ids": _selectedTargetKelasIds.toList(),
       "tanggal_acara": DateTime.now().toString().substring(0, 10),
       "dibuat_oleh": widget.namaUser,
       "gambar_base64": gambarBase64,
@@ -124,7 +169,7 @@ class _EventScreenState extends State<EventScreen> {
       setState(() {
         _imageFile = null;
       });
-      _panggilDataAcara();
+      await _panggilDataAcara();
     } else {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -155,7 +200,11 @@ class _EventScreenState extends State<EventScreen> {
       ),
     );
 
-    _panggilDataAcara();
+    if (res['status'] == 'success') {
+      await _panggilDataAcara();
+    } else {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
   void _bukaDialogTambahAcara() {
     showModalBottomSheet(
@@ -198,23 +247,38 @@ class _EventScreenState extends State<EventScreen> {
                       validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: _selectedTargetKelas,
-                      decoration: const InputDecoration(
-                        labelText: 'Terjadi di / Untuk Kelas',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        'Semua Kelas',
-                        'Kelas 1',
-                        'Kelas 2',
-                        'Kelas 3',
-                        'Kelas 4',
-                        'Kelas 5',
-                        'Kelas 6',
-                      ].map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
-                      onChanged: (v) => setModalState(() => _selectedTargetKelas = v!),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Tampilkan untuk semua kelas'),
+                      value: _targetSemuaKelas,
+                      onChanged: (value) => setModalState(() {
+                        _targetSemuaKelas = value ?? false;
+                        if (_targetSemuaKelas) _selectedTargetKelasIds.clear();
+                      }),
                     ),
+                    if (!_targetSemuaKelas)
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 180),
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: _kelas.map((kelas) {
+                            final id = int.tryParse(kelas['id'].toString());
+                            if (id == null) return const SizedBox.shrink();
+                            return CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(kelas['nama'].toString()),
+                              value: _selectedTargetKelasIds.contains(id),
+                              onChanged: (selected) => setModalState(() {
+                                if (selected == true) {
+                                  _selectedTargetKelasIds.add(id);
+                                } else {
+                                  _selectedTargetKelasIds.remove(id);
+                                }
+                              }),
+                            );
+                          }).toList(),
+                        ),
+                      ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _deskripsiController,
@@ -293,29 +357,44 @@ class _EventScreenState extends State<EventScreen> {
 
     // LOGIKA DINAMIS: Menyaring pengumuman agar otomatis melekat pada ruang kelas fiskal
   void _jalankanFilterBeritaSekolah(List<dynamic> semuaBerita) {
-    setState(() {
-      // Jika yang login adalah ADMIN, bypass saringan agar bisa memantau semua berita
-      if (widget.roleUser.toLowerCase().trim() == 'admin') {
-        _listEvents = semuaBerita;
-        return;
-      }
+    // Jika yang login adalah ADMIN, bypass saringan agar bisa memantau semua berita
+    if (widget.roleUser.toLowerCase().trim() == 'admin') {
+      _listEvents = semuaBerita;
+      return;
+    }
 
-      // Jika yang login adalah GURU atau SISWA, lakukan penyaringan ketat
-      _listEvents = semuaBerita.where((ev) {
-        final targetBerita = ev['target_kelas'].toString().trim().toLowerCase();
-        
-        // Mengambil status kelas aktif terbaru dari data login pengguna
-        final kelasAktifUser = (widget.kelasUser ?? 'Belum Diatur').toString().trim().toLowerCase();
+    final currentClassId = int.tryParse(widget.kelasIdUser ?? '');
+    _listEvents = semuaBerita.where((ev) {
+      if (ev is! Map) return false;
+      if (ev['target_semua_kelas'] == true) return true;
+      if (currentClassId == null) return false;
+      final rawIds = ev['target_kelas_ids'];
+      if (rawIds is! List) return false;
+      return rawIds.any(
+        (id) => int.tryParse(id.toString()) == currentClassId,
+      );
+    }).toList();
+  }
 
-        // Kondisi A: Jika pengumuman diset global, semua kelas wajib bisa melihat
-        if (targetBerita == 'semua kelas' || targetBerita == 'semua') {
-          return true;
-        }
+  String _labelTargetKelas(dynamic event) {
+    if (event is! Map) return 'Semua Kelas';
+    if (event['target_semua_kelas'] == true) return 'Semua Kelas';
 
-        // Kondisi B: Berita hanya muncul jika target_kelas cocok dengan kelas aktif pengguna saat ini
-        return targetBerita == kelasAktifUser;
-      }).toList();
-    });
+    final activeClassIds = _kelas
+        .map((kelas) => int.tryParse(kelas['id']?.toString() ?? ''))
+        .whereType<int>()
+        .toSet();
+    final rawTargetIds = event['target_kelas_ids'];
+    if (activeClassIds.isNotEmpty && rawTargetIds is List) {
+      final targetIds = rawTargetIds
+          .map((id) => int.tryParse(id.toString()))
+          .whereType<int>()
+          .toSet();
+      if (targetIds.containsAll(activeClassIds)) return 'Semua Kelas';
+    }
+
+    final label = event['target_kelas']?.toString().trim() ?? '';
+    return label.isEmpty ? 'Semua Kelas' : label;
   }
 
   // LOGIKA TA AMAN: Panggilan HTTP dikontrol agar tidak memicu infinite loop saat modal di-rebuild
@@ -475,6 +554,33 @@ class _EventScreenState extends State<EventScreen> {
     return Scaffold(
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : _eventError != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.cloud_off_rounded,
+                          size: 48,
+                          color: Colors.redAccent,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _eventError!,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _panggilDataAcara,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Coba lagi'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
           : _listEvents.isEmpty
               ? const Center(child: Text('Belum ada postingan kegiatan sekolah.'))
               : ListView.builder(
@@ -516,7 +622,7 @@ class _EventScreenState extends State<EventScreen> {
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                           decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
                                           child: Text(
-                                            item['target_kelas'] ?? 'Semua Kelas',
+                                            _labelTargetKelas(item),
                                             style: TextStyle(color: Colors.blue.shade800, fontWeight: FontWeight.bold, fontSize: 11),
                                           ),
                                         ),

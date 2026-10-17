@@ -8,10 +8,10 @@ class PresensiService {
   static const String _baseUrl = ApiConfig.baseUrl;
   static const Duration _timeout = Duration(seconds: 20);
 
-  static Future<Map<String, dynamic>> ambilSiswa(String kelas) async {
+  static Future<Map<String, dynamic>> ambilSiswa(int kelasId) async {
     try {
       final uri = Uri.parse('$_baseUrl/get_siswa_by_kelas.php')
-          .replace(queryParameters: {'kelas': kelas});
+          .replace(queryParameters: {'kelas_id': kelasId.toString()});
       final response = await http.get(uri).timeout(_timeout);
       return _decodeResponse(response);
     } catch (error) {
@@ -24,12 +24,12 @@ class PresensiService {
 
   static Future<Map<String, dynamic>> ambilPresensi({
     required String userId,
-    String? kelas,
+    int? kelasId,
     String? tanggal,
   }) async {
     try {
       final query = <String, String>{'user_id': userId};
-      if (kelas != null && kelas.isNotEmpty) query['kelas'] = kelas;
+      if (kelasId != null) query['kelas_id'] = kelasId.toString();
       if (tanggal != null && tanggal.isNotEmpty) query['tanggal'] = tanggal;
       final uri = Uri.parse('$_baseUrl/get_presensi.php')
           .replace(queryParameters: query);
@@ -45,7 +45,7 @@ class PresensiService {
 
   static Future<Map<String, dynamic>> simpanPresensi({
     required String userId,
-    required String kelas,
+    required int kelasId,
     required String tanggal,
     required List<Map<String, dynamic>> presensi,
   }) async {
@@ -56,7 +56,7 @@ class PresensiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'user_id': userId,
-              'kelas': kelas,
+              'kelas_id': kelasId,
               'tanggal': tanggal,
               'presensi': presensi,
             }),

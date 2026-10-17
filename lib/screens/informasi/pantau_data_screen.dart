@@ -62,7 +62,7 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
         final nama = user['nama_lengkap'].toString().toLowerCase().trim();
         final nomorInduk = user['nomor_induk'].toString().toLowerCase().trim();
         final role = user['role'].toString().toLowerCase().trim();
-        final kelasUser = user['kelas_diajar']?.toString().toLowerCase().trim() ?? '';
+        final kelasUser = user['kelas_nama']?.toString().toLowerCase().trim() ?? '';
         final angkatanUser = user['tahun_angkatan']?.toString().trim() ?? '';
         final cocokKeyword = nama.contains(_searchQuery.toLowerCase().trim()) ||
             nomorInduk.contains(_searchQuery.toLowerCase().trim());
@@ -355,12 +355,12 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
                                                 ),
                                                 if (user['role'] == 'siswa' && user['tahun_angkatan'] != null)
                                                   Text(
-                                                    'Tahun Angkatan: ${user['tahun_angkatan']} • Kelas: ${user['kelas_diajar']}',
+                                                    'Tahun Angkatan: ${user['tahun_angkatan']} • Kelas: ${user['kelas_nama'] ?? '-'}',
                                                     style: const TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.w500),
                                                   ),
-                                                if (user['role'] == 'guru' && user['kelas_diajar'] != null)
+                                                if (user['role'] == 'guru' && user['kelas_nama'] != null)
                                                   Text(
-                                                    'Mengajar: ${user['kelas_diajar']}',
+                                                    'Mengajar: ${user['kelas_nama']}',
                                                     style: const TextStyle(color: Colors.deepOrange, fontSize: 13, fontWeight: FontWeight.w500),
                                                   ),
                                               ],

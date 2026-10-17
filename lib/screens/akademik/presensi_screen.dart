@@ -1,18 +1,21 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/presensi_service.dart';
+import 'package:aplikasi_sekolah/core/services/api_config.dart';
 
 class PresensiScreen extends StatefulWidget {
   final String userId;
   final String role;
-  final String kelasUser;
+  final String? kelasIdUser;
   final bool statusTemaGelap;
 
   const PresensiScreen({
     super.key,
     required this.userId,
     required this.role,
-    required this.kelasUser,
+    required this.kelasIdUser,
     required this.statusTemaGelap,
   });
 
@@ -21,14 +24,6 @@ class PresensiScreen extends StatefulWidget {
 }
 
 class _PresensiScreenState extends State<PresensiScreen> {
-  static const List<String> _kelas = [
-    'Kelas 1',
-    'Kelas 2',
-    'Kelas 3',
-    'Kelas 4',
-    'Kelas 5',
-    'Kelas 6',
-  ];
   static const List<String> _statusPresensi = [
     'Hadir',
     'Sakit',
@@ -37,7 +32,8 @@ class _PresensiScreenState extends State<PresensiScreen> {
   ];
 
   late DateTime _tanggalDipilih;
-  late String _kelasDipilih;
+  int? _kelasDipilih;
+  List<Map<String, dynamic>> _kelas = [];
   List<Map<String, dynamic>> _siswa = [];
   List<Map<String, dynamic>> _riwayat = [];
   final Map<String, String> _statusSiswa = {};
@@ -58,20 +54,43 @@ class _PresensiScreenState extends State<PresensiScreen> {
   void initState() {
     super.initState();
     _tanggalDipilih = DateUtils.dateOnly(DateTime.now());
-    final kelasGuru = _normalisasiKelas(widget.kelasUser);
-    _kelasDipilih = _isAdmin ? '' : kelasGuru ?? '';
+    _kelasDipilih = _isAdmin ? null : int.tryParse(widget.kelasIdUser ?? '');
+    _muatKelas();
     _muatData();
   }
 
-  String? _normalisasiKelas(String value) {
-    final normalized = value.trim().toLowerCase();
+  String get _kelasNama {
     for (final kelas in _kelas) {
-      if (normalized == kelas.toLowerCase() ||
-          normalized == kelas.replaceFirst('Kelas ', '')) {
-        return kelas;
+      if (int.tryParse(kelas['id'].toString()) == _kelasDipilih) {
+        return kelas['nama'].toString();
       }
     }
-    return null;
+    return '';
+  }
+
+  Future<void> _muatKelas() async {
+    try {
+      final response = await http
+          .get(Uri.parse('${ApiConfig.baseUrl}/get_kelas.php'))
+          .timeout(const Duration(seconds: 15));
+      final decoded = jsonDecode(response.body);
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          decoded is! Map<String, dynamic> ||
+          decoded['status'] != 'success' ||
+          decoded['data'] is! List) {
+        throw Exception('Gagal memuat daftar kelas.');
+      }
+      if (!mounted) return;
+      setState(() {
+        _kelas = (decoded['data'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Gagal memuat kelas: $e');
+    }
   }
 
   String get _tanggalApi {
@@ -93,7 +112,7 @@ class _PresensiScreenState extends State<PresensiScreen> {
     });
     _bersihkanCatatan();
 
-    if (_isGuru && !_kelas.contains(_kelasDipilih)) {
+    if (_isGuru && (_kelasDipilih == null || _kelasDipilih! <= 0)) {
       setState(() {
         _error =
             'Kelas akun guru belum diatur. Hubungi admin untuk memperbarui kelas.';
@@ -113,7 +132,9 @@ class _PresensiScreenState extends State<PresensiScreen> {
   }
 
   Future<void> _muatDaftarSiswa() async {
-    final response = await PresensiService.ambilSiswa(_kelasDipilih);
+    final classId = _kelasDipilih;
+    if (classId == null) return;
+    final response = await PresensiService.ambilSiswa(classId);
     if (!mounted) return;
     if (response['status'] != 'success') {
       _error = response['message'] ?? 'Gagal memuat daftar siswa.';
@@ -138,7 +159,7 @@ class _PresensiScreenState extends State<PresensiScreen> {
 
     final previous = await PresensiService.ambilPresensi(
       userId: widget.userId,
-      kelas: _kelasDipilih,
+      kelasId: _kelasDipilih,
       tanggal: _tanggalApi,
     );
     if (!mounted) return;
@@ -165,7 +186,7 @@ class _PresensiScreenState extends State<PresensiScreen> {
   Future<void> _muatRiwayat() async {
     final response = await PresensiService.ambilPresensi(
       userId: widget.userId,
-      kelas: _isAdmin ? _kelasDipilih : null,
+      kelasId: _isAdmin ? _kelasDipilih : null,
       tanggal: _tanggalApi,
     );
     if (!mounted) return;
@@ -223,6 +244,10 @@ class _PresensiScreenState extends State<PresensiScreen> {
       _tampilkanPesan('Tidak ada siswa yang dapat dicatat.', error: true);
       return;
     }
+    if (_kelasDipilih == null) {
+      _tampilkanPesan('Kelas belum dipilih.', error: true);
+      return;
+    }
     setState(() => _isSaving = true);
     final rows = _siswa.map((student) {
       final studentId = student['id'].toString();
@@ -235,7 +260,7 @@ class _PresensiScreenState extends State<PresensiScreen> {
 
     final response = await PresensiService.simpanPresensi(
       userId: widget.userId,
-      kelas: _kelasDipilih,
+      kelasId: _kelasDipilih!,
       tanggal: _tanggalApi,
       presensi: rows,
     );
@@ -423,7 +448,7 @@ class _PresensiScreenState extends State<PresensiScreen> {
       children: [
         _buildBanner(
           title: 'Presensi Kelas',
-          subtitle: '$_kelasDipilih • Catat kehadiran hari ini',
+          subtitle: '$_kelasNama • Catat kehadiran hari ini',
           icon: Icons.fact_check_rounded,
         ),
         _buildFilterPanel(allowClassSelection: false),
@@ -441,7 +466,7 @@ class _PresensiScreenState extends State<PresensiScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Belum ada siswa aktif di $_kelasDipilih.',
+                        'Belum ada siswa aktif di $_kelasNama.',
                         style: TextStyle(color: _mutedColor),
                       ),
                     ],
@@ -685,8 +710,8 @@ class _PresensiScreenState extends State<PresensiScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (allowClassSelection) ...[
-            DropdownButtonFormField<String>(
-              initialValue: _kelasDipilih,
+            DropdownButtonFormField<int>(
+              initialValue: _kelasDipilih ?? -1,
               decoration: InputDecoration(
                 labelText: 'Filter kelas',
                 prefixIcon: const Icon(Icons.meeting_room_outlined),
@@ -696,14 +721,17 @@ class _PresensiScreenState extends State<PresensiScreen> {
                 isDense: true,
               ),
               items: [
-                const DropdownMenuItem(value: '', child: Text('Semua kelas')),
+                const DropdownMenuItem(value: -1, child: Text('Semua kelas')),
                 ..._kelas.map(
-                  (kelas) => DropdownMenuItem(value: kelas, child: Text(kelas)),
+                  (kelas) => DropdownMenuItem(
+                    value: int.tryParse(kelas['id'].toString()),
+                    child: Text(kelas['nama'].toString()),
+                  ),
                 ),
               ],
               onChanged: (value) async {
                 if (value == null) return;
-                setState(() => _kelasDipilih = value);
+                setState(() => _kelasDipilih = value == -1 ? null : value);
                 await _muatData();
               },
             ),
@@ -768,7 +796,7 @@ class _PresensiScreenState extends State<PresensiScreen> {
                 Icon(Icons.groups_outlined, size: 17, color: _mutedColor),
                 const SizedBox(width: 7),
                 Text(
-                  _kelasDipilih,
+                  _kelasNama,
                   style: TextStyle(
                     color: _textColor,
                     fontWeight: FontWeight.w600,

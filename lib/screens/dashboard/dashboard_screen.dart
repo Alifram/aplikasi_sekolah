@@ -5,10 +5,13 @@ import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
 import 'package:aplikasi_sekolah/core/services/api_service.dart';
 import 'package:aplikasi_sekolah/core/services/api_config.dart';
+import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
 import '../akademik/manajemen_jadwal_screen.dart';
+import '../akademik/manajemen_penugasan_mapel_screen.dart';
+import '../akademik/manajemen_mata_pelajaran_screen.dart';
 import '../akademik/tampilan_jadwal_screen.dart';
 import '../akademik/kelas_screen.dart';
-import '../akademik/input_nilai_screen.dart';
+import '../akademik/akademik_guru_screen.dart';
 import '../akademik/rapor_siswa_screen.dart';
 import '../akademik/presensi_screen.dart';
 import '../informasi/event_screen.dart';
@@ -42,6 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Map<String, dynamic> _dataStatistik = {};
   List<dynamic> _listEvents = [];
+  List<Map<String, dynamic>> _kelasAktif = [];
   String _angkatanTerpilih = DateTime.now().year.toString();
 
   int _totalSiswa = 0;
@@ -51,7 +55,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<String> get _daftarOpsiAngkatan {
     int tahunSekarang = DateTime.now().year;
     List<String> listTahun = [];
-    for (int i = 2023; i <= tahunSekarang + 5; i++) {
+    final tahunTerpilih = int.tryParse(_angkatanTerpilih) ?? 2023;
+    final tahunAwal = tahunTerpilih < 2023 ? tahunTerpilih : 2023;
+    for (int i = tahunAwal; i <= tahunSekarang + 5; i++) {
       listTahun.add(i.toString());
     }
     return listTahun;
@@ -70,13 +76,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
       final resEvent = await DashboardService.ambilAcaraTerbaru();
       final resRingkasan = await ApiService.ambilRingkasanDashboard();
+      final resKelas = await KelasService.ambilDaftarKelas();
 
       if (mounted) {
         setState(() {
           if (resStat['status'] == 'success')
             _dataStatistik = resStat['data'] ?? {};
-          if (resEvent['status'] == 'success')
-            _listEvents = resEvent['data'] ?? [];
+          if (resKelas['status'] == 'success' && resKelas['data'] is List) {
+            _kelasAktif = (resKelas['data'] as List)
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList();
+          }
+          if (resEvent['status'] == 'success' && resEvent['data'] is List) {
+            _listEvents = _filterEventUntukPengguna(
+              resEvent['data'] as List,
+            );
+          }
           if (resRingkasan['status'] == 'success') {
             _totalSiswa =
                 int.tryParse(resRingkasan['total_siswa'].toString()) ?? 0;
@@ -85,6 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _totalPengumuman =
                 int.tryParse(resRingkasan['total_pengumuman'].toString()) ?? 0;
           }
+
           _isStatistikLoading = false;
           _isEventsLoading = false;
         });
@@ -96,6 +113,91 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _isEventsLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _muatStatistikSetelahNilaiTersimpan(int angkatan) async {
+    setState(() {
+      _angkatanTerpilih = angkatan.toString();
+      _isStatistikLoading = true;
+    });
+    final response = await DashboardService.ambilStatistikBerdasarkanAngkatan(
+      _angkatanTerpilih,
+    );
+    if (!mounted) return;
+    if (response['status'] == 'success' && response['data'] is Map) {
+      setState(() {
+        _dataStatistik = Map<String, dynamic>.from(response['data']);
+        _isStatistikLoading = false;
+      });
+      return;
+    }
+
+    setState(() => _isStatistikLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          response['message']?.toString() ??
+              'Gagal memperbarui statistik nilai.',
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  String _labelTargetEvent(dynamic event) {
+    if (event is! Map || event['target_semua_kelas'] == true) {
+      return 'Semua Kelas';
+    }
+
+    final activeClassIds = _kelasAktif
+        .map((kelas) => int.tryParse(kelas['id']?.toString() ?? ''))
+        .whereType<int>()
+        .toSet();
+    final rawTargetIds = event['target_kelas_ids'];
+    if (activeClassIds.isNotEmpty && rawTargetIds is List) {
+      final targetIds = rawTargetIds
+          .map((id) => int.tryParse(id.toString()))
+          .whereType<int>()
+          .toSet();
+      if (targetIds.containsAll(activeClassIds)) return 'Semua Kelas';
+    }
+
+    final targetClass = event['target_kelas']?.toString().trim() ?? '';
+    return targetClass.isEmpty ? 'Semua Kelas' : targetClass;
+  }
+
+  List<dynamic> _filterEventUntukPengguna(List<dynamic> events) {
+    if (widget.role.toLowerCase().trim() == 'admin') return events;
+
+    final classId = int.tryParse(
+      widget.extraData['kelas_id']?.toString() ?? '',
+    );
+    return events.where((event) {
+      if (event is! Map) return false;
+      if (event['target_semua_kelas'] == true) return true;
+      if (classId == null) return false;
+
+      final targetIds = event['target_kelas_ids'];
+      if (targetIds is! List) return false;
+      return targetIds.any((id) => int.tryParse(id.toString()) == classId);
+    }).toList();
+  }
+
+  void _perbaruiEventHome(List<dynamic> events) {
+    if (!mounted) return;
+    setState(() {
+      _listEvents = _filterEventUntukPengguna(events);
+      _isEventsLoading = false;
+    });
+  }
+
+  Future<void> _muatUlangEventHome() async {
+    final response = await DashboardService.ambilAcaraTerbaru();
+    if (!mounted) return;
+    final events = response['data'];
+    if (response['status'] == 'success' && events is List) {
+      _perbaruiEventHome(events);
     }
   }
 
@@ -116,7 +218,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         builder: (context) => PresensiScreen(
           userId: userId,
           role: widget.role,
-          kelasUser: widget.extraData['kelas_diajar']?.toString() ?? '',
+          kelasIdUser: widget.extraData['kelas_id']?.toString(),
           statusTemaGelap: widget.statusTemaGelap,
         ),
       ),
@@ -419,6 +521,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       warnaTeksUtama,
                     ),
                     _buildItemMenuBulat(
+                      'Penugasan Mapel',
+                      Icons.menu_book_rounded,
+                      Colors.deepPurple,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ManajemenPenugasanMapelScreen(
+                              userId: widget.extraData['id'].toString(),
+                            ),
+                          ),
+                        );
+                      },
+                      warnaKotakKartu,
+                      warnaTeksUtama,
+                    ),
+                    _buildItemMenuBulat(
+                      'Mata Pelajaran',
+                      Icons.library_books_rounded,
+                      Colors.indigo,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ManajemenMataPelajaranScreen(
+                              userId: widget.extraData['id'].toString(),
+                            ),
+                          ),
+                        );
+                      },
+                      warnaKotakKartu,
+                      warnaTeksUtama,
+                    ),
+                    _buildItemMenuBulat(
                       'Presensi',
                       Icons.fact_check_rounded,
                       Colors.blue,
@@ -469,9 +607,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             builder: (context) => TampilanJadwalScreen(
                               roleUser: widget.role,
                               namaLengkapUser: widget.namaUser,
-                              kelasSiswa:
-                                  widget.extraData['kelas_diajar']
-                                      ?.toString() ??
+                              userId: widget.extraData['id'].toString(),
+                              kelasId:
+                                  widget.extraData['kelas_id']?.toString() ??
                                   '',
                               statusTemaGelap: widget.statusTemaGelap,
                             ),
@@ -524,9 +662,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             builder: (context) => TampilanJadwalScreen(
                               roleUser: widget.role,
                               namaLengkapUser: widget.namaUser,
-                              kelasSiswa:
-                                  widget.extraData['kelas_diajar']
-                                      ?.toString() ??
+                              userId: widget.extraData['id'].toString(),
+                              kelasId:
+                                  widget.extraData['kelas_id']?.toString() ??
                                   '',
                               statusTemaGelap: widget.statusTemaGelap,
                             ),
@@ -655,7 +793,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
-                                        'Target: ${ev['target_kelas'] ?? 'Semua Kelas'}',
+                                        _labelTargetEvent(ev),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontSize: 10,
                                           fontWeight: FontWeight.bold,
@@ -841,9 +981,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: 6,
+              itemCount: _dataStatistik.length,
               itemBuilder: (context, index) {
-                String namaKelas = "Kelas ${index + 1}";
+                final namaKelas = _dataStatistik.keys.elementAt(index);
                 var dataKelas =
                     _dataStatistik[namaKelas] ??
                     {"semester_1": 0.0, "semester_2": 0.0};
@@ -1381,9 +1521,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return (widget.role == 'admin')
             ? RegisterFormScreen(pembuatRole: widget.role)
             : (widget.role == 'guru')
-            ? InputNilaiScreen(
-                kelasGuru: widget.extraData['kelas_diajar'] ?? 'Belum Diatur',
+            ? AkademikGuruScreen(
+                namaGuru: widget.namaUser,
+                kelasGuru:
+                    (widget.extraData['kelas_nama'] ??
+                            widget.extraData['kelas_diajar'] ??
+                            'Belum Diatur')
+                        .toString(),
                 idGuru: widget.extraData['id'].toString(),
+                onNilaiTersimpan: _muatStatistikSetelahNilaiTersimpan,
+                onBukaStatistik: () => setState(() => _currentIndex = 1),
               )
             : RaporSiswaScreen(idSiswa: widget.extraData['id'].toString());
       case 3:
@@ -1391,7 +1538,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           userId: widget.extraData['id'].toString(),
           namaUser: widget.namaUser,
           roleUser: widget.role,
-          kelasUser: widget.extraData['kelas_diajar']?.toString(),
+          kelasIdUser: widget.extraData['kelas_id']?.toString(),
+          onEventsChanged: _perbaruiEventHome,
         );
       case 4:
         return _buildHalamanProfilLengkap();
@@ -1406,7 +1554,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: widget.statusTemaGelap
           ? const Color(0xFF0B141A)
           : Colors.white,
-      appBar: _currentIndex == 0
+      appBar: _currentIndex == 0 ||
+              (widget.role == 'siswa' &&
+                  (_currentIndex == 1 || _currentIndex == 2))
           ? null
           : AppBar(
               title: Text(
@@ -1415,7 +1565,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     : _currentIndex == 2
                     ? (widget.role == 'admin'
                           ? 'Buat Akun Baru'
-                          : 'Input Nilai Rapor')
+                          : widget.role == 'guru'
+                          ? 'Akademik'
+                          : 'Lembar Rapor Digital')
                     : _currentIndex == 3
                     ? 'Informasi & Kegiatan'
                     : 'Profil Pengguna',
@@ -1435,6 +1587,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           setState(() {
             _currentIndex = index;
           });
+          if (index == 0) _muatUlangEventHome();
         },
         type: BottomNavigationBarType.fixed,
         backgroundColor: widget.statusTemaGelap

@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
+import 'package:aplikasi_sekolah/core/services/api_config.dart';
 
 class RegisterFormScreen extends StatefulWidget {
   final String pembuatRole; 
@@ -18,25 +21,17 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
   final TextEditingController _namaLengkapController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _kelasController = TextEditingController(); // Digunakan manual untuk akun Guru
-
   String _selectedRole = 'siswa'; 
   bool _isLoading = false;
+  bool _isLoadingKelas = true;
+  String? _kelasError;
+  List<Map<String, dynamic>> _kelas = [];
 
   // ===========================================================================
   // WIDGET STATE BARU: Pilihan awal Dropdown penempatan khusus Akun Siswa
   // ===========================================================================
-  String _selectedKelasSiswa = 'Kelas 1';
+  int? _selectedKelasId;
   String _selectedAngkatanSiswa = DateTime.now().year.toString();
-
-  final List<String> _daftarKelasOpsi = [
-    'Kelas 1',
-    'Kelas 2',
-    'Kelas 3',
-    'Kelas 4',
-    'Kelas 5',
-    'Kelas 6',
-  ];
 
   List<String> get _daftarTahunAngkatanOpsi {
     int tahunSekarang = DateTime.now().year;
@@ -53,6 +48,40 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
     if (widget.pembuatRole == 'guru') {
       _selectedRole = 'siswa';
     }
+    _muatKelas();
+  }
+
+  Future<void> _muatKelas() async {
+    try {
+      final response = await http
+          .get(Uri.parse('${ApiConfig.baseUrl}/get_kelas.php'))
+          .timeout(const Duration(seconds: 15));
+      final decoded = jsonDecode(response.body);
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          decoded is! Map<String, dynamic> ||
+          decoded['status'] != 'success' ||
+          decoded['data'] is! List) {
+        throw Exception(
+          decoded is Map ? decoded['message'] ?? 'Gagal memuat kelas.' : 'Respons kelas tidak valid.',
+        );
+      }
+      if (!mounted) return;
+      setState(() {
+        _kelas = (decoded['data'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+        _selectedKelasId = _kelas.isEmpty
+            ? null
+            : int.tryParse(_kelas.first['id'].toString());
+        _kelasError = _kelas.isEmpty ? 'Belum ada kelas aktif.' : null;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _kelasError = 'Gagal memuat kelas: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingKelas = false);
+    }
   }
 
   void _bersihkanFormulir() {
@@ -60,9 +89,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
     _namaLengkapController.clear();
     _emailController.clear();
     _passwordController.clear();
-    _kelasController.clear();
     setState(() {
-      _selectedKelasSiswa = 'Kelas 1';
+      _selectedKelasId = _kelas.isEmpty
+          ? null
+          : int.tryParse(_kelas.first['id'].toString());
       _selectedAngkatanSiswa = DateTime.now().year.toString();
     });
   }
@@ -83,7 +113,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
       "email": _emailController.text.trim(),
       "password": _passwordController.text.trim(),
       "role": _selectedRole,
-      "kelas_diajar": _selectedKelasSiswa.trim(),
+      "kelas_id": _selectedKelasId,
       "tahun_angkatan": _selectedRole == 'siswa' ? int.tryParse(_selectedAngkatanSiswa) : null,
     };
 
@@ -210,31 +240,36 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              if (_selectedRole == 'siswa') ...[
+              if (_selectedRole == 'siswa' || _selectedRole == 'guru') ...[
                 Row(
                   children: [
                     Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedKelasSiswa,
+                      child: DropdownButtonFormField<int>(
+                        value: _selectedKelasId,
                         decoration: InputDecoration(
-                          labelText: 'Tingkat Kelas',
+                          labelText: 'Kelas',
                           prefixIcon: const Icon(Icons.school_outlined),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        items: _daftarKelasOpsi.map((String k) {
-                          return DropdownMenuItem<String>(value: k, child: Text(k));
+                        items: _kelas.map((kelas) {
+                          return DropdownMenuItem<int>(
+                            value: int.tryParse(kelas['id'].toString()),
+                            child: Text(kelas['nama'].toString()),
+                          );
                         }).toList(),
                         onChanged: (value) {
                           setState(() {
-                            _selectedKelasSiswa = value!;
+                            _selectedKelasId = value;
                           });
                         },
+                        validator: (value) => value == null ? 'Pilih kelas' : null,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
+                    if (_selectedRole == 'siswa') ...[
+                      const SizedBox(width: 16),
+                      Expanded(
                       child: DropdownButtonFormField<String>(
                         value: _selectedAngkatanSiswa,
                         decoration: InputDecoration(
@@ -253,9 +288,20 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                           });
                         },
                       ),
-                    ),
+                      ),
+                    ],
                   ],
                 ),
+                if (_isLoadingKelas)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: LinearProgressIndicator(),
+                  ),
+                if (_kelasError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(_kelasError!, style: const TextStyle(color: Colors.red)),
+                  ),
                 const SizedBox(height: 20),
               ],
 
@@ -272,28 +318,6 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                     value!.length < 6 ? 'Password minimal 6 karakter' : null,
               ),
               const SizedBox(height: 20),
-
-              if (_selectedRole == 'guru') ...[
-                DropdownButtonFormField<String>(
-                  value: _selectedKelasSiswa, 
-                  decoration: InputDecoration(
-                    labelText: 'Mengampu di Tingkat Kelas',
-                    prefixIcon: const Icon(Icons.meeting_room_outlined),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  items: _daftarKelasOpsi.map((String k) {
-                    return DropdownMenuItem<String>(value: k, child: Text(k));
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedKelasSiswa = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-              ],
 
               const SizedBox(height: 15),
 

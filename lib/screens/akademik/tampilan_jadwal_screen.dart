@@ -7,14 +7,16 @@ import 'package:aplikasi_sekolah/core/services/api_config.dart';
 class TampilanJadwalScreen extends StatefulWidget {
   final String roleUser;       // 'guru' atau 'siswa'
   final String namaLengkapUser; // Nama guru atau nama siswa
-  final String kelasSiswa;     // Kelas siswa (jika role siswa)
+  final String userId;
+  final String kelasId;
   final bool statusTemaGelap;
 
   const TampilanJadwalScreen({
     super.key,
     required this.roleUser,
     required this.namaLengkapUser,
-    this.kelasSiswa = '',
+    required this.userId,
+    this.kelasId = '',
     required this.statusTemaGelap,
   });
 
@@ -44,10 +46,18 @@ class _TampilanJadwalScreenState extends State<TampilanJadwalScreen> {
       // Menggunakan file get_jadwal_by_kelas.php yang fleksibel
       final queryParameters = <String, String>{'hari': _hariAktif};
       if (widget.roleUser == 'siswa') {
-        queryParameters['kelas'] =
-            widget.kelasSiswa.isNotEmpty ? widget.kelasSiswa : 'Kelas 1';
+        if (widget.kelasId.isEmpty) {
+          if (mounted) {
+            setState(() {
+              _jadwalHariIni = [];
+              _jadwalError = 'Kelas akun belum diatur.';
+            });
+          }
+          return;
+        }
+        queryParameters['kelas_id'] = widget.kelasId;
       } else {
-        queryParameters['guru'] = widget.namaLengkapUser;
+        queryParameters['guru_id'] = widget.userId;
       }
 
       final uri = Uri.parse(
@@ -60,14 +70,7 @@ class _TampilanJadwalScreenState extends State<TampilanJadwalScreen> {
           List<dynamic> mentah = dataRespon['data'] ?? [];
           if (!mounted) return;
           setState(() {
-            if (widget.roleUser == 'guru') {
-              // Jika role GURU: Hanya tampilkan jadwal yang nama pengampunya cocok dengan user login
-              _jadwalHariIni = mentah.where((j) => 
-                j['guru_pengampu'].toString().toLowerCase().contains(widget.namaLengkapUser.toLowerCase())
-              ).toList();
-            } else {
-              _jadwalHariIni = mentah;
-            }
+            _jadwalHariIni = mentah;
           });
         } else {
           _jadwalError = dataRespon['message'] ?? 'Gagal memuat jadwal.';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
-import 'package:aplikasi_sekolah/core/services/nilai_service.dart';
+import 'package:aplikasi_sekolah/core/services/admin_service.dart';
 
 class KelasScreen extends StatefulWidget {
   final String kelasSiswa;
@@ -14,6 +14,7 @@ class KelasScreen extends StatefulWidget {
 class _KelasScreenState extends State<KelasScreen> {
   List<dynamic> _listSiswaGlobal = [];
   bool _isLoadingSiswa = true;
+  String? _error;
 
   @override
   void initState() {
@@ -22,14 +23,18 @@ class _KelasScreenState extends State<KelasScreen> {
   }
 
   Future<void> _panggilDataMuridSistem() async {
-    // 🌟 JIKA PARAMETER KOSONG (AKSES DARI ADMIN), KITA DEFAULT KE 'Kelas 1' ATAU MEMANGGIL SEMUA DATA
-    String filterKelas = widget.kelasSiswa.isEmpty ? 'Kelas 1' : widget.kelasSiswa;
-    
-    final res = await NilaiService.ambilSiswa(filterKelas);
+    final res = await AdminService.ambilSemuaPengguna();
     if (mounted) {
       setState(() {
-        if (res['status'] == 'success') {
-          _listSiswaGlobal = res['data'] ?? [];
+        if (res['status'] == 'success' && res['data'] is List) {
+          _listSiswaGlobal = (res['data'] as List)
+              .whereType<Map>()
+              .where((user) => user['role'] == 'siswa')
+              .toList();
+        } else {
+          _error = res['message']?.toString() ?? 'Gagal memuat data siswa.';
+          _isLoadingSiswa = false;
+          return;
         }
         _isLoadingSiswa = false;
       });
@@ -55,7 +60,9 @@ class _KelasScreenState extends State<KelasScreen> {
       ),
       body: _isLoadingSiswa
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : _listSiswaGlobal.isEmpty
+          : _error != null
+              ? Center(child: Text(_error!))
+              : _listSiswaGlobal.isEmpty
               ? const Center(
                   child: Text(
                     'Belum ada data siswa terdaftar di tingkat kelas ini.',

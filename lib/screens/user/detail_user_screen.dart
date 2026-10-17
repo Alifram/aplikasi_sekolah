@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/admin_service.dart';
+import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
 import '../../core/services/api_service.dart';
 
 class DetailUserScreen extends StatefulWidget {
@@ -25,14 +26,18 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
   List<dynamic> _listNilai = [];
   bool _isLoading = true;
   String _pesanError = '';
-  late String _currentKelas;
+  String _currentKelas = 'Belum Diatur';
+  int? _currentKelasId;
   late int _isDeletedStatus;
 
   @override
     @override
   void initState() {
     super.initState();
-    _currentKelas = widget.userData['kelas_diajar'] ?? 'Belum Diatur';
+    _currentKelas = widget.userData['kelas_nama'] ??
+        widget.userData['kelas_diajar'] ??
+        'Belum Diatur';
+    _currentKelasId = int.tryParse(widget.userData['kelas_id']?.toString() ?? '');
     _isDeletedStatus = int.tryParse(widget.userData['is_deleted'].toString()) ?? 0; 
     _panggilDataNilai();
   }
@@ -105,16 +110,38 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
     );
   }
   
-  void _tampilkanDialogEditUserMasaDepan() {
+  Future<void> _tampilkanDialogEditUserMasaDepan() async {
     final user = widget.userData;
     final _formKeyEditGlobal = GlobalKey<FormState>();
+    final classResponse = await KelasService.ambilDaftarKelas();
+    if (!mounted) return;
+    if (classResponse['status'] != 'success' ||
+        classResponse['data'] is! List) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            classResponse['message']?.toString() ??
+                'Gagal memuat daftar kelas.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    final classes = classResponse['status'] == 'success' &&
+            classResponse['data'] is List
+        ? (classResponse['data'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList()
+        : <Map<String, dynamic>>[];
     
     // Inisialisasi controller data riil dari database MySQL
     final TextEditingController _namaController = TextEditingController(text: user['nama_lengkap']);
     final TextEditingController _emailController = TextEditingController(text: user['email']);
     final TextEditingController _passBaruController = TextEditingController();
     
-    String _kelasTerpilihDinamis = _currentKelas ?? user['kelas_diajar'] ?? 'Kelas 1';
+    int? kelasTerpilihId = _currentKelasId;
     final bool isDark = widget.statusTemaGelap;
     
     // Palet Warna Kontras Tinggi Adaptif (WhatsApp Dark Mode style)
@@ -130,7 +157,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
         "id_user": user['id'].toString(),
         "nama_lengkap": _namaController.text.trim(),
         "email": _emailController.text.trim(),
-        "kelas_diajar": _kelasTerpilihDinamis, 
+        "kelas_id": kelasTerpilihId,
         "password_baru": _passBaruController.text.trim(),
       };
 
@@ -141,9 +168,15 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
 
       if (res['status'] == 'success') {
         setState(() {
-          _currentKelas = _kelasTerpilihDinamis;
+          _currentKelasId = kelasTerpilihId;
+          final matchingClass = classes.where((item) =>
+              int.tryParse(item['id'].toString()) == kelasTerpilihId);
+          _currentKelas =
+              matchingClass.isEmpty ? 'Belum Diatur' : matchingClass.first['nama'].toString();
           user['nama_lengkap'] = _namaController.text.trim();
           user['email'] = _emailController.text.trim();
+          user['kelas_id'] = kelasTerpilihId;
+          user['kelas_nama'] = _currentKelas;
         });
       }
 
@@ -229,8 +262,9 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                       ),
                       const SizedBox(height: 18),
                       // 3. DROPDOWN PINDAH TINGKAT KELAS TERINTEGRASI
-                      DropdownButtonFormField<String>(
-                        value: _kelasTerpilihDinamis,
+                      if (user['role'] == 'guru' || user['role'] == 'siswa')
+                      DropdownButtonFormField<int>(
+                        value: kelasTerpilihId,
                         dropdownColor: warnaLatarDialog,
                         style: TextStyle(color: warnaTeksUtama, fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
@@ -242,8 +276,12 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                           focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: warnaBorderActive, width: 2)),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        items: ['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'].map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
-                        onChanged: (v) => setModalState(() => _kelasTerpilihDinamis = v!),
+                        items: classes.map((item) => DropdownMenuItem<int>(
+                          value: int.tryParse(item['id'].toString()),
+                          child: Text(item['nama'].toString()),
+                        )).toList(),
+                        validator: (value) => value == null ? 'Pilih kelas' : null,
+                        onChanged: (v) => setModalState(() => kelasTerpilihId = v),
                       ),
                       
                       // 🌟 4. FITUR TAMBAHAN: DROPDOWN TAHUN ANGKATAN (HANYA MUNCUL JIKA USER = SISWA)
@@ -451,34 +489,6 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
         }
         _isLoading = false;
       });
-    }
-  }
-
-  // LOGIKA BARU: Mengirim data kelas baru ke database MySQL via AdminService
-  Future<void> _prosesPindahKelas(String kelasBaru) async {
-    final String userId = widget.userData['id'].toString();
-
-    final res = await AdminService.prosesPindahKelas(userId, kelasBaru);
-    
-    if (!mounted) return; // Pengaman context untuk TA
-
-    if (res['status'] == 'success') {
-      setState(() {
-        _currentKelas = kelasBaru;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(res['message'] ?? 'Kelas berhasil diperbarui'),
-          backgroundColor: AppColors.primary,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(res['message'] ?? 'Gagal memperbarui kelas'),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
 
