@@ -1,0 +1,274 @@
+
+<?php
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+header("Content-Type: application/json; charset=UTF-8");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gunakan metode GET."
+    ]);
+    exit();
+}
+
+include "koneksi.php";
+
+$guruId = isset($_GET['guru_id'])
+    ? filter_var($_GET['guru_id'], FILTER_VALIDATE_INT)
+    : false;
+
+$assignmentId = isset($_GET['kelas_mapel_id'])
+    ? filter_var($_GET['kelas_mapel_id'], FILTER_VALIDATE_INT)
+    : false;
+
+$semester = isset($_GET['semester'])
+    ? filter_var($_GET['semester'], FILTER_VALIDATE_INT)
+    : false;
+
+if (
+    $guruId === false || $guruId <= 0 ||
+    $assignmentId === false || $assignmentId <= 0 ||
+    !in_array($semester, [1, 2], true)
+) {
+    http_response_code(400);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Parameter guru, penugasan, atau semester tidak valid."
+    ]);
+    exit();
+}
+
+// Validasi penugasan dan ambil tahun ajaran.
+$stmt = mysqli_prepare(
+    $koneksi,
+    "SELECT km.kelas_id, km.tahun_ajaran
+     FROM kelas_mapel km
+     JOIN kelas k ON k.id = km.kelas_id AND k.aktif = 1
+     JOIN mata_pelajaran mp
+       ON mp.id = km.mata_pelajaran_id AND mp.aktif = 1
+     WHERE km.id = ?
+       AND km.guru_id = ?
+       AND km.aktif = 1
+     LIMIT 1"
+);
+
+if (!$stmt) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal menyiapkan pemeriksaan penugasan."
+    ]);
+    exit();
+}
+
+mysqli_stmt_bind_param($stmt, "ii", $assignmentId, $guruId);
+
+if (!mysqli_stmt_execute($stmt)) {
+    mysqli_stmt_close($stmt);
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal memeriksa penugasan."
+    ]);
+    exit();
+}
+
+$assignment = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
+
+if (!$assignment) {
+    http_response_code(403);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Penugasan tidak ditemukan atau bukan milik guru ini."
+    ]);
+    exit();
+}
+
+$classId = (int)$assignment['kelas_id'];
+$year = $assignment['tahun_ajaran'];
+
+// Ambil bobot yang sudah diatur.
+// Jika belum ada konfigurasi, gunakan bobot awal 55/20/25.
+$stmt = mysqli_prepare(
+    $koneksi,
+    "SELECT bobot_harian, bobot_uts, bobot_uas
+     FROM bobot_nilai
+     WHERE kelas_mapel_id = ?
+       AND semester = ?
+       AND tahun_ajaran = ?
+     LIMIT 1"
+);
+
+if (!$stmt) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal menyiapkan pengambilan bobot."
+    ]);
+    exit();
+}
+
+mysqli_stmt_bind_param($stmt, "iis", $assignmentId, $semester, $year);
+
+if (!mysqli_stmt_execute($stmt)) {
+    mysqli_stmt_close($stmt);
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal mengambil bobot nilai."
+    ]);
+    exit();
+}
+
+$weights = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
+
+$bobotHarian = $weights !== null ? (float)$weights['bobot_harian'] : 55.0;
+$bobotUts = $weights !== null ? (float)$weights['bobot_uts'] : 20.0;
+$bobotUas = $weights !== null ? (float)$weights['bobot_uas'] : 25.0;
+
+if (abs(($bobotHarian + $bobotUts + $bobotUas) - 100.0) > 0.001) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Total bobot harus 100 persen."
+    ]);
+    exit();
+}
+
+// Ambil seluruh siswa aktif di kelas.
+// Nilai harian dan tugas dirata-ratakan sebagai satu komponen.
+$stmt = mysqli_prepare(
+    $koneksi,
+    "SELECT
+         s.id AS siswa_id,
+         s.nomor_induk,
+         s.nama_lengkap,
+         AVG(
+             CASE
+                 WHEN p.jenis_penilaian IN ('harian', 'tugas')
+                 THEN np.skor_nilai
+                 ELSE NULL
+             END
+         ) AS rata_harian_tugas,
+         MAX(
+             CASE
+                 WHEN p.jenis_penilaian = 'uts'
+                 THEN np.skor_nilai
+                 ELSE NULL
+             END
+         ) AS nilai_uts,
+         MAX(
+             CASE
+                 WHEN p.jenis_penilaian = 'uas'
+                 THEN np.skor_nilai
+                 ELSE NULL
+             END
+         ) AS nilai_uas
+     FROM users s
+     LEFT JOIN penilaian p
+       ON p.kelas_mapel_id = ?
+      AND p.guru_id = ?
+      AND p.semester = ?
+      AND p.tahun_ajaran = ?
+      AND p.aktif = 1
+     LEFT JOIN nilai_penilaian np
+       ON np.penilaian_id = p.id
+      AND np.siswa_id = s.id
+     WHERE s.role = 'siswa'
+       AND s.is_deleted = 0
+       AND s.kelas_id = ?
+     GROUP BY s.id, s.nomor_induk, s.nama_lengkap
+     ORDER BY s.nama_lengkap"
+);
+
+if (!$stmt) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal menyiapkan rekap nilai."
+    ]);
+    exit();
+}
+
+mysqli_stmt_bind_param(
+    $stmt,
+    "iiisi",
+    $assignmentId,
+    $guruId,
+    $semester,
+    $year,
+    $classId
+);
+
+if (!mysqli_stmt_execute($stmt)) {
+    mysqli_stmt_close($stmt);
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal mengambil rekap nilai."
+    ]);
+    exit();
+}
+
+$result = mysqli_stmt_get_result($stmt);
+$data = [];
+
+while ($row = mysqli_fetch_assoc($result)) {
+    $harian = $row['rata_harian_tugas'] !== null
+        ? (float)$row['rata_harian_tugas']
+        : null;
+
+    $uts = $row['nilai_uts'] !== null
+        ? (float)$row['nilai_uts']
+        : null;
+
+    $uas = $row['nilai_uas'] !== null
+        ? (float)$row['nilai_uas']
+        : null;
+
+    $nilaiAkhir = null;
+
+    if ($harian !== null && $uts !== null && $uas !== null) {
+        $nilaiAkhir = round(
+            ($harian * $bobotHarian / 100) +
+            ($uts * $bobotUts / 100) +
+            ($uas * $bobotUas / 100),
+            2
+        );
+    }
+
+    $row['siswa_id'] = (int)$row['siswa_id'];
+    $row['rata_harian_tugas'] = $harian;
+    $row['nilai_uts'] = $uts;
+    $row['nilai_uas'] = $uas;
+    $row['nilai_akhir'] = $nilaiAkhir;
+    $row['status_nilai'] = $nilaiAkhir !== null
+        ? 'lengkap'
+        : 'belum_lengkap';
+
+    $data[] = $row;
+}
+
+mysqli_stmt_close($stmt);
+
+echo json_encode([
+    "status" => "success",
+    "bobot" => [
+        "harian" => $bobotHarian,
+        "uts" => $bobotUts,
+        "uas" => $bobotUas
+    ],
+    "data" => $data
+]);
+
+mysqli_close($koneksi);
+?>

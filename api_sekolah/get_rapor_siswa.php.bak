@@ -1,0 +1,585 @@
+
+<?php
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+header("Content-Type: application/json; charset=UTF-8");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gunakan metode GET."
+    ]);
+    exit();
+}
+
+include "koneksi.php";
+
+$studentId = isset($_GET['siswa_id'])
+    ? filter_var($_GET['siswa_id'], FILTER_VALIDATE_INT)
+    : false;
+
+if ($studentId === false || $studentId <= 0) {
+    http_response_code(400);
+    echo json_encode([
+        "status" => "error",
+        "message" => "ID siswa tidak valid."
+    ]);
+    exit();
+}
+
+/*
+ * Pastikan siswa tersedia dan tidak dihapus.
+ */
+$stmt = mysqli_prepare(
+    $koneksi,
+    "SELECT id
+     FROM users
+     WHERE id = ?
+       AND role = 'siswa'
+       AND COALESCE(is_deleted, 0) = 0
+     LIMIT 1"
+);
+
+if (!$stmt) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal menyiapkan pemeriksaan siswa."
+    ]);
+    exit();
+}
+
+mysqli_stmt_bind_param($stmt, "i", $studentId);
+mysqli_stmt_execute($stmt);
+$student = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
+
+if (!$student) {
+    http_response_code(404);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Siswa tidak ditemukan."
+    ]);
+    exit();
+}
+
+/*
+ * Fungsi untuk mengambil bobot sesuai penugasan,
+ * semester, dan tahun ajaran.
+ */
+function ambilBobot($koneksi, $assignmentId, $semester, $year)
+{
+    $stmt = mysqli_prepare(
+        $koneksi,
+        "SELECT bobot_harian, bobot_uts, bobot_uas
+         FROM bobot_nilai
+         WHERE kelas_mapel_id = ?
+           AND semester = ?
+           AND tahun_ajaran = ?
+         LIMIT 1"
+    );
+
+    if (!$stmt) {
+        throw new Exception("Gagal menyiapkan pengambilan bobot.");
+    }
+
+    mysqli_stmt_bind_param(
+        $stmt,
+        "iis",
+        $assignmentId,
+        $semester,
+        $year
+    );
+
+    if (!mysqli_stmt_execute($stmt)) {
+        mysqli_stmt_close($stmt);
+        throw new Exception("Gagal mengambil bobot nilai.");
+    }
+
+    $weights = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+
+    $harian = $weights !== null
+        ? (float)$weights['bobot_harian']
+        : 55.0;
+
+    $uts = $weights !== null
+        ? (float)$weights['bobot_uts']
+        : 20.0;
+
+    $uas = $weights !== null
+        ? (float)$weights['bobot_uas']
+        : 25.0;
+
+    if (abs(($harian + $uts + $uas) - 100.0) > 0.001) {
+        throw new Exception("Total bobot harus 100 persen.");
+    }
+
+    return [
+        "harian" => $harian,
+        "uts" => $uts,
+        "uas" => $uas
+    ];
+}
+
+try {
+    /*
+     * 1. Ambil nilai lama.
+     * Nilai lama tetap dipertahankan sebagai sumber cadangan.
+     */
+    $stmt = mysqli_prepare(
+        $koneksi,
+        "SELECT
+             n.id AS nilai_raport_id,
+             n.siswa_id,
+             n.semester,
+             k.nama AS kelas,
+             n.tahun_angkatan,
+             km.tahun_ajaran,
+             mp.nama AS mata_pelajaran,
+             n.nilai_tugas,
+             n.nilai_uts,
+             n.nilai_uas,
+             n.keterangan,
+             guru.nama_lengkap AS nama_guru,
+             n.kelas_mapel_id
+         FROM nilai_raport n
+         JOIN kelas_mapel km ON km.id = n.kelas_mapel_id
+         JOIN kelas k ON k.id = km.kelas_id
+         JOIN mata_pelajaran mp ON mp.id = km.mata_pelajaran_id
+         JOIN users guru ON guru.id = n.guru_id
+         WHERE n.siswa_id = ?
+         ORDER BY n.id"
+    );
+
+    if (!$stmt) {
+        throw new Exception("Gagal menyiapkan data nilai lama.");
+    }
+
+    mysqli_stmt_bind_param($stmt, "i", $studentId);
+
+    if (!mysqli_stmt_execute($stmt)) {
+        mysqli_stmt_close($stmt);
+        throw new Exception("Gagal mengambil data nilai lama.");
+    }
+
+    $result = mysqli_stmt_get_result($stmt);
+    $grades = [];
+    $legacyKeys = [];
+
+    while ($row = mysqli_fetch_assoc($result)) {
+        $key = (int)$row['kelas_mapel_id']
+            . '|'
+            . (int)$row['semester'];
+
+        $row['sumber_nilai'] = 'nilai_raport';
+        $row['rata_harian_tugas'] = null;
+        $row['nilai_akhir'] = null;
+        $row['status_nilai'] = 'belum_lengkap';
+
+        $row['nilai_tugas'] = $row['nilai_tugas'] !== null
+            ? (float)$row['nilai_tugas']
+            : null;
+
+        $row['nilai_uts'] = $row['nilai_uts'] !== null
+            ? (float)$row['nilai_uts']
+            : null;
+
+        $row['nilai_uas'] = $row['nilai_uas'] !== null
+            ? (float)$row['nilai_uas']
+            : null;
+
+        /*
+         * Query sebelumnya memastikan tidak ada duplikat
+         * pada kombinasi siswa, penugasan, dan semester.
+         */
+        $legacyKeys[$key] = count($grades);
+        $grades[] = $row;
+    }
+
+    mysqli_stmt_close($stmt);
+
+    /*
+     * 2. Ambil komponen nilai baru.
+     * AVG untuk harian/tugas dan MAX untuk UTS/UAS,
+     * sama dengan API rekap nilai.
+     *
+     * Hanya kelompok dengan setidaknya satu skor terisi
+     * yang dimasukkan sebagai data nilai baru.
+     */
+    $stmt = mysqli_prepare(
+        $koneksi,
+        "SELECT
+             km.id AS kelas_mapel_id,
+             km.tahun_ajaran,
+             km.kelas_id,
+             k.nama AS kelas,
+             mp.nama AS mata_pelajaran,
+             km.guru_id,
+             guru.nama_lengkap AS nama_guru,
+             p.semester,
+             AVG(
+                 CASE
+                     WHEN p.jenis_penilaian IN ('harian', 'tugas')
+                     THEN np.skor_nilai
+                     ELSE NULL
+                 END
+             ) AS rata_harian_tugas,
+             MAX(
+                 CASE
+                     WHEN p.jenis_penilaian = 'uts'
+                     THEN np.skor_nilai
+                     ELSE NULL
+                 END
+             ) AS nilai_uts,
+             MAX(
+                 CASE
+                     WHEN p.jenis_penilaian = 'uas'
+                     THEN np.skor_nilai
+                     ELSE NULL
+                 END
+             ) AS nilai_uas
+         FROM penilaian p
+         JOIN kelas_mapel km
+           ON km.id = p.kelas_mapel_id
+          AND km.guru_id = p.guru_id
+         JOIN kelas k ON k.id = km.kelas_id
+         JOIN mata_pelajaran mp
+           ON mp.id = km.mata_pelajaran_id
+         JOIN users guru ON guru.id = km.guru_id
+         JOIN nilai_penilaian np
+           ON np.penilaian_id = p.id
+          AND np.siswa_id = ?
+         WHERE p.aktif = 1
+         GROUP BY
+             km.id,
+             km.tahun_ajaran,
+             km.kelas_id,
+             k.nama,
+             mp.nama,
+             km.guru_id,
+             guru.nama_lengkap,
+             p.semester
+         HAVING COUNT(np.skor_nilai) > 0
+         ORDER BY km.tahun_ajaran, k.nama, p.semester, mp.nama"
+    );
+
+    if (!$stmt) {
+        throw new Exception("Gagal menyiapkan data penilaian baru.");
+    }
+
+    mysqli_stmt_bind_param($stmt, "i", $studentId);
+
+    if (!mysqli_stmt_execute($stmt)) {
+        mysqli_stmt_close($stmt);
+        throw new Exception("Gagal mengambil data penilaian baru.");
+    }
+
+    $result = mysqli_stmt_get_result($stmt);
+
+    while ($new = mysqli_fetch_assoc($result)) {
+        $assignmentId = (int)$new['kelas_mapel_id'];
+        $semester = (int)$new['semester'];
+        $year = $new['tahun_ajaran'];
+
+        $key = $assignmentId . '|' . $semester;
+
+        $harianBaru = $new['rata_harian_tugas'] !== null
+            ? (float)$new['rata_harian_tugas']
+            : null;
+
+        $utsBaru = $new['nilai_uts'] !== null
+            ? (float)$new['nilai_uts']
+            : null;
+
+        $uasBaru = $new['nilai_uas'] !== null
+            ? (float)$new['nilai_uas']
+            : null;
+
+        /*
+         * Jika ada baris lama yang cocok, gabungkan
+         * komponen per komponen tanpa menimpa database.
+         */
+        if (array_key_exists($key, $legacyKeys)) {
+            $index = $legacyKeys[$key];
+            $old = $grades[$index];
+
+            $tugasLama = $old['nilai_tugas'];
+            $utsLama = $old['nilai_uts'];
+            $uasLama = $old['nilai_uas'];
+
+            $harianFinal = $harianBaru !== null
+                ? $harianBaru
+                : $tugasLama;
+
+            $utsFinal = $utsBaru !== null
+                ? $utsBaru
+                : $utsLama;
+
+            $uasFinal = $uasBaru !== null
+                ? $uasBaru
+                : $uasLama;
+
+            $grades[$index]['rata_harian_tugas'] = $harianFinal;
+            $grades[$index]['nilai_tugas'] = $harianFinal;
+            $grades[$index]['nilai_uts'] = $utsFinal;
+            $grades[$index]['nilai_uas'] = $uasFinal;
+            $grades[$index]['sumber_nilai'] = 'gabungan';
+            $grades[$index]['tahun_ajaran'] = $year;
+
+            if ($harianBaru !== null || $utsBaru !== null || $uasBaru !== null) {
+                $grades[$index]['kelas'] = $new['kelas'];
+                $grades[$index]['mata_pelajaran'] = $new['mata_pelajaran'];
+                $grades[$index]['nama_guru'] = $new['nama_guru'];
+            }
+
+            $weights = ambilBobot(
+                $koneksi,
+                $assignmentId,
+                $semester,
+                $year
+            );
+
+            $grades[$index]['bobot'] = $weights;
+
+            if (
+                $harianFinal !== null &&
+                $utsFinal !== null &&
+                $uasFinal !== null
+            ) {
+                $grades[$index]['nilai_akhir'] = round(
+                    $harianFinal * $weights['harian'] / 100
+                    + $utsFinal * $weights['uts'] / 100
+                    + $uasFinal * $weights['uas'] / 100,
+                    2
+                );
+
+                $grades[$index]['status_nilai'] = 'lengkap';
+            } else {
+                $grades[$index]['nilai_akhir'] = null;
+                $grades[$index]['status_nilai'] = 'belum_lengkap';
+            }
+        } else {
+            /*
+             * Nilai baru tanpa pasangan nilai lama.
+             */
+            $weights = ambilBobot(
+                $koneksi,
+                $assignmentId,
+                $semester,
+                $year
+            );
+
+            $nilaiAkhir = null;
+            $statusNilai = 'belum_lengkap';
+
+            if (
+                $harianBaru !== null &&
+                $utsBaru !== null &&
+                $uasBaru !== null
+            ) {
+                $nilaiAkhir = round(
+                    $harianBaru * $weights['harian'] / 100
+                    + $utsBaru * $weights['uts'] / 100
+                    + $uasBaru * $weights['uas'] / 100,
+                    2
+                );
+
+                $statusNilai = 'lengkap';
+            }
+
+            $grades[] = [
+                'nilai_raport_id' => null,
+                'siswa_id' => (int)$studentId,
+                'semester' => $semester,
+                'kelas' => $new['kelas'],
+                'tahun_angkatan' => null,
+                'tahun_ajaran' => $year,
+                'mata_pelajaran' => $new['mata_pelajaran'],
+                'nilai_tugas' => $harianBaru,
+                'nilai_uts' => $utsBaru,
+                'nilai_uas' => $uasBaru,
+                'keterangan' => null,
+                'nama_guru' => $new['nama_guru'],
+                'kelas_mapel_id' => $assignmentId,
+                'rata_harian_tugas' => $harianBaru,
+                'nilai_akhir' => $nilaiAkhir,
+                'status_nilai' => $statusNilai,
+                'sumber_nilai' => 'nilai_penilaian',
+                'bobot' => $weights
+            ];
+        }
+    }
+
+    mysqli_stmt_close($stmt);
+
+    /*
+     * 3. Hitung nilai akhir untuk baris lama yang tidak
+     * memiliki pasangan penilaian baru.
+     * Nilai yang tidak lengkap tetap tidak diberi nilai akhir.
+     */
+    foreach ($grades as &$grade) {
+        if ($grade['nilai_akhir'] !== null) {
+            continue;
+        }
+
+        if ($grade['sumber_nilai'] !== 'nilai_raport') {
+            continue;
+        }
+
+        $assignmentId = (int)$grade['kelas_mapel_id'];
+        $semester = (int)$grade['semester'];
+        $year = $grade['tahun_ajaran'];
+
+        $weights = ambilBobot(
+            $koneksi,
+            $assignmentId,
+            $semester,
+            $year
+        );
+
+        $grade['bobot'] = $weights;
+        $grade['rata_harian_tugas'] = $grade['nilai_tugas'];
+
+        if (
+            $grade['nilai_tugas'] !== null &&
+            $grade['nilai_uts'] !== null &&
+            $grade['nilai_uas'] !== null
+        ) {
+            $grade['nilai_akhir'] = round(
+                $grade['nilai_tugas'] * $weights['harian'] / 100
+                + $grade['nilai_uts'] * $weights['uts'] / 100
+                + $grade['nilai_uas'] * $weights['uas'] / 100,
+                2
+            );
+
+            $grade['status_nilai'] = 'lengkap';
+        } else {
+            $grade['nilai_akhir'] = null;
+            $grade['status_nilai'] = 'belum_lengkap';
+        }
+    }
+    unset($grade);
+
+    
+    /*
+     * 4. Ambil detail setiap penilaian untuk rapor siswa.
+     */
+    $stmtDetail = mysqli_prepare(
+        $koneksi,
+        "SELECT
+            p.id AS penilaian_id,
+            p.kelas_mapel_id,
+            p.semester,
+            p.tahun_ajaran,
+            p.nama_penilaian,
+            p.jenis_penilaian,
+            p.tanggal_penilaian,
+            np.skor_nilai,
+            np.keterangan
+         FROM penilaian p
+         INNER JOIN nilai_penilaian np
+            ON np.penilaian_id = p.id
+         INNER JOIN kelas_mapel km
+            ON km.id = p.kelas_mapel_id
+         WHERE np.siswa_id = ?
+           AND p.aktif = 1
+           AND km.aktif = 1
+           AND p.tahun_ajaran = km.tahun_ajaran
+         ORDER BY
+            p.tahun_ajaran,
+            p.semester,
+            p.kelas_mapel_id,
+            p.tanggal_penilaian,
+            p.id"
+    );
+
+    mysqli_stmt_bind_param($stmtDetail, "i", $studentId);
+    mysqli_stmt_execute($stmtDetail);
+
+    $resultDetail = mysqli_stmt_get_result($stmtDetail);
+    $detailMap = [];
+
+    while ($detail = mysqli_fetch_assoc($resultDetail)) {
+        $key = (int)$detail['kelas_mapel_id']
+            . '|'
+            . (int)$detail['semester']
+            . '|'
+            . (string)$detail['tahun_ajaran'];
+
+        if (!isset($detailMap[$key])) {
+            $detailMap[$key] = [];
+        }
+
+        $detailMap[$key][] = [
+            'penilaian_id' => (int)$detail['penilaian_id'],
+            'nama_penilaian' => $detail['nama_penilaian'],
+            'jenis_penilaian' => $detail['jenis_penilaian'],
+            'tanggal_penilaian' => $detail['tanggal_penilaian'],
+            'skor_nilai' => $detail['skor_nilai'] !== null
+                ? (float)$detail['skor_nilai']
+                : null,
+            'keterangan' => $detail['keterangan']
+        ];
+    }
+
+    mysqli_stmt_close($stmtDetail);
+
+    foreach ($grades as &$grade) {
+        $key = (int)$grade['kelas_mapel_id']
+            . '|'
+            . (int)$grade['semester']
+            . '|'
+            . (string)$grade['tahun_ajaran'];
+
+        $grade['detail_penilaian'] = $detailMap[$key] ?? [];
+    }
+    unset($grade);
+
+    /*
+     * Urutkan hasil untuk tampilan rapor.
+     */
+    usort($grades, function ($a, $b) {
+        $yearCompare = strcmp(
+            (string)($a['tahun_ajaran'] ?? ''),
+            (string)($b['tahun_ajaran'] ?? '')
+        );
+
+        if ($yearCompare !== 0) {
+            return $yearCompare;
+        }
+
+        $semesterCompare = (int)$a['semester'] <=> (int)$b['semester'];
+
+        if ($semesterCompare !== 0) {
+            return $semesterCompare;
+        }
+
+        return strcmp(
+            (string)$a['mata_pelajaran'],
+            (string)$b['mata_pelajaran']
+        );
+    });
+
+    echo json_encode([
+        "status" => "success",
+        "data" => $grades
+    ], JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal memproses data rapor.",
+        "detail" => $e->getMessage()
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+mysqli_close($koneksi);
+?>
