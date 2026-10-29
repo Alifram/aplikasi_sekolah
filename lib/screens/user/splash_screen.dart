@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
+import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -27,36 +27,24 @@ class _SplashScreenState extends State<_SplashScreenStateful> {
   }
 
   Future<void> _periksaSesiLoginAplikasi() async {
-    final prefs = await SharedPreferences.getInstance();
-    final bool isLogin = prefs.getBool('is_login') ?? false;
-
     await Future.delayed(const Duration(seconds: 3));
 
-    if (!mounted) return; 
+    Map<String, dynamic>? profile;
+    try {
+      profile = await AuthService.currentUserProfile();
+    } catch (error) {
+      debugPrint('Tidak dapat memuat profil sesi Supabase: $error');
+    }
+    if (!mounted) return;
 
-    if (isLogin) {
-      final String userId = prefs.getString('user_id') ?? '';
-      final String nomorInduk = prefs.getString('nomor_induk') ?? '';
-      final String namaLengkap = prefs.getString('nama_lengkap') ?? 'Pengguna';
-      final String role = prefs.getString('role') ?? 'siswa';
-      final String kelasNama = prefs.getString('kelas_nama') ?? 'Belum Diatur';
-      final String? kelasId = prefs.getString('kelas_id');
-
+    if (profile != null) {
       Navigator.pushReplacementNamed(
-        context, 
+        context,
         '/dashboard',
-        arguments: {
-          "id": userId,
-          "nomor_induk": nomorInduk,
-          "nama_lengkap": namaLengkap,
-          "role": role,
-          "kelas_nama": kelasNama,
-          "kelas_id": kelasId,
-          "kelas_diajar": kelasNama,
-        },
+        arguments: profile,
       );
     } else {
-      Navigator.pushReplacementNamed(context, '/onboarding');
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 

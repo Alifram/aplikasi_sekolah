@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
-import '../dashboard/dashboard_screen.dart'; 
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,7 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // LOGIKA BARU: UI murni hanya memicu panggilan ke AuthService
   Future<void> _prosesLogin() async {
     final String identifier = _identifierController.text.trim();
-    final String password = _passwordController.text.trim();
+    final String password = _passwordController.text;
 
     if (identifier.isEmpty || password.isEmpty) {
       _tampilkanPesanError("Nomor Induk / Email dan Password tidak boleh kosong.");

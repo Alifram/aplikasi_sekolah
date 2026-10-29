@@ -3,8 +3,21 @@ import 'screens/user/splash_screen.dart';
 import 'screens/dashboard/onboarding_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart'; // Pastikan import dashboard ada
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/services/supabase_config.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (!SupabaseConfig.isConfigured) {
+    throw StateError(
+      'SUPABASE_URL dan SUPABASE_PUBLISHABLE_KEY harus disediakan '
+      'melalui --dart-define-from-file.',
+    );
+  }
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    publishableKey: SupabaseConfig.publishableKey,
+  );
   runApp(const MyApp());
 }
 

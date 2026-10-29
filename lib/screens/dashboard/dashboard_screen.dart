@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
-import 'package:aplikasi_sekolah/core/services/api_service.dart';
 import 'package:aplikasi_sekolah/core/services/api_config.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
 import '../akademik/manajemen_jadwal_screen.dart';
@@ -42,6 +40,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
   bool _isStatistikLoading = true;
   bool _isEventsLoading = true;
+  bool _isAdminSummaryLoading = true;
+  String? _adminSummaryError;
 
   Map<String, dynamic> _dataStatistik = {};
   List<dynamic> _listEvents = [];
@@ -50,6 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int _totalSiswa = 0;
   int _totalGuru = 0;
+  int _totalKelas = 0;
   int _totalPengumuman = 0;
 
   List<String> get _daftarOpsiAngkatan {
@@ -75,13 +76,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _angkatanTerpilih,
       );
       final resEvent = await DashboardService.ambilAcaraTerbaru();
-      final resRingkasan = await ApiService.ambilRingkasanDashboard();
+      final resRingkasan = widget.role == 'admin'
+          ? await DashboardService.ambilRingkasanAdmin()
+          : null;
       final resKelas = await KelasService.ambilDaftarKelas();
 
       if (mounted) {
         setState(() {
-          if (resStat['status'] == 'success')
+          if (resStat['status'] == 'success') {
             _dataStatistik = resStat['data'] ?? {};
+          }
           if (resKelas['status'] == 'success' && resKelas['data'] is List) {
             _kelasAktif = (resKelas['data'] as List)
                 .whereType<Map>()
@@ -89,31 +93,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 .toList();
           }
           if (resEvent['status'] == 'success' && resEvent['data'] is List) {
-            _listEvents = _filterEventUntukPengguna(
-              resEvent['data'] as List,
-            );
+            _listEvents = _filterEventUntukPengguna(resEvent['data'] as List);
           }
-          if (resRingkasan['status'] == 'success') {
-            _totalSiswa =
-                int.tryParse(resRingkasan['total_siswa'].toString()) ?? 0;
-            _totalGuru =
-                int.tryParse(resRingkasan['total_guru'].toString()) ?? 0;
-            _totalPengumuman =
-                int.tryParse(resRingkasan['total_pengumuman'].toString()) ?? 0;
+          if (resRingkasan != null && resRingkasan['status'] == 'success') {
+            _totalSiswa = (resRingkasan['total_siswa'] as num).toInt();
+            _totalGuru = (resRingkasan['total_guru'] as num).toInt();
+            _totalKelas = (resRingkasan['total_kelas'] as num).toInt();
+            _totalPengumuman = (resRingkasan['total_pengumuman'] as num)
+                .toInt();
+            _adminSummaryError = null;
+          } else if (resRingkasan != null) {
+            _adminSummaryError =
+                resRingkasan['message']?.toString() ??
+                'Gagal memuat ringkasan dashboard.';
           }
 
           _isStatistikLoading = false;
           _isEventsLoading = false;
+          _isAdminSummaryLoading = false;
         });
       }
     } catch (e) {
+      debugPrint('Gagal memuat data dashboard: $e');
       if (mounted) {
         setState(() {
           _isStatistikLoading = false;
           _isEventsLoading = false;
+          _isAdminSummaryLoading = false;
+          if (widget.role == 'admin') {
+            _adminSummaryError = 'Gagal memuat ringkasan dashboard: $e';
+          }
         });
       }
     }
+  }
+
+  Future<void> _muatRingkasanAdmin() async {
+    setState(() {
+      _isAdminSummaryLoading = true;
+      _adminSummaryError = null;
+    });
+
+    final response = await DashboardService.ambilRingkasanAdmin();
+    if (!mounted) return;
+    setState(() {
+      _isAdminSummaryLoading = false;
+      if (response['status'] == 'success') {
+        _totalSiswa = (response['total_siswa'] as num).toInt();
+        _totalGuru = (response['total_guru'] as num).toInt();
+        _totalKelas = (response['total_kelas'] as num).toInt();
+        _totalPengumuman = (response['total_pengumuman'] as num).toInt();
+        _adminSummaryError = null;
+      } else {
+        _adminSummaryError =
+            response['message']?.toString() ??
+            'Gagal memuat ringkasan dashboard.';
+      }
+    });
   }
 
   Future<void> _muatStatistikSetelahNilaiTersimpan(int angkatan) async {
@@ -431,6 +467,94 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 24),
 
+              if (widget.role == 'admin') ...[
+                Text(
+                  'Ringkasan Sekolah',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: warnaTeksUtama,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (_isAdminSummaryLoading)
+                  const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  )
+                else if (_adminSummaryError != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: warnaKotakKartu,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: warnaPinggiran),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _adminSummaryError!,
+                          style: TextStyle(color: warnaTeksUtama),
+                        ),
+                        TextButton.icon(
+                          onPressed: _muatRingkasanAdmin,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Coba lagi'),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 2.25,
+                    children: [
+                      _buildKartuRingkasan(
+                        'Siswa',
+                        _totalSiswa,
+                        Icons.school_rounded,
+                        Colors.blue,
+                        warnaKotakKartu,
+                        warnaTeksUtama,
+                        warnaPinggiran,
+                      ),
+                      _buildKartuRingkasan(
+                        'Guru',
+                        _totalGuru,
+                        Icons.person_rounded,
+                        Colors.deepPurple,
+                        warnaKotakKartu,
+                        warnaTeksUtama,
+                        warnaPinggiran,
+                      ),
+                      _buildKartuRingkasan(
+                        'Kelas Aktif',
+                        _totalKelas,
+                        Icons.meeting_room_rounded,
+                        Colors.teal,
+                        warnaKotakKartu,
+                        warnaTeksUtama,
+                        warnaPinggiran,
+                      ),
+                      _buildKartuRingkasan(
+                        'Pengumuman',
+                        _totalPengumuman,
+                        Icons.campaign_rounded,
+                        Colors.amber.shade800,
+                        warnaKotakKartu,
+                        warnaTeksUtama,
+                        warnaPinggiran,
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 24),
+              ],
+
               Text(
                 'Menu Utama',
                 style: TextStyle(
@@ -528,8 +652,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                ManajemenPenugasanMapelScreen(
+                            builder: (context) => ManajemenPenugasanMapelScreen(
                               userId: widget.extraData['id'].toString(),
                             ),
                           ),
@@ -546,8 +669,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                ManajemenMataPelajaranScreen(
+                            builder: (context) => ManajemenMataPelajaranScreen(
                               userId: widget.extraData['id'].toString(),
                             ),
                           ),
@@ -1554,7 +1676,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: widget.statusTemaGelap
           ? const Color(0xFF0B141A)
           : Colors.white,
-      appBar: _currentIndex == 0 ||
+      appBar:
+          _currentIndex == 0 ||
               (widget.role == 'siswa' &&
                   (_currentIndex == 1 || _currentIndex == 2))
           ? null
@@ -1628,6 +1751,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const BottomNavigationBarItem(
             icon: Icon(Icons.account_circle_rounded),
             label: 'Profil',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKartuRingkasan(
+    String label,
+    int total,
+    IconData icon,
+    Color color,
+    Color backgroundColor,
+    Color textColor,
+    Color borderColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 25),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$total',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: textColor.withValues(alpha: 0.7),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
