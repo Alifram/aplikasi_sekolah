@@ -7,7 +7,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AuthService {
   static const String baseUrl = ApiConfig.baseUrl;
 
-  static Future<Map<String, dynamic>> login(String identifier, String password) async {
+  static Future<Map<String, dynamic>> login(
+    String identifier,
+    String password,
+  ) async {
     try {
       final normalizedIdentifier = identifier.trim();
       if (normalizedIdentifier.isEmpty || password.isEmpty) {
@@ -28,10 +31,7 @@ class AuthService {
       } else {
         final response = await client.functions.invoke(
           'login-by-identifier',
-          body: {
-            'identifier': normalizedIdentifier,
-            'password': password,
-          },
+          body: {'identifier': normalizedIdentifier, 'password': password},
         );
         final authData = response.data;
         if (authData is! Map ||
@@ -52,7 +52,10 @@ class AuthService {
       }
 
       if (authenticatedUser == null) {
-        return {'status': 'error', 'message': 'Sesi login tidak berhasil dibuat.'};
+        return {
+          'status': 'error',
+          'message': 'Sesi login tidak berhasil dibuat.',
+        };
       }
 
       Map<String, dynamic>? profile;
@@ -74,10 +77,7 @@ class AuthService {
       await _saveProfileLocally(profile);
       return {'status': 'success', 'user': profile};
     } on AuthException catch (error) {
-      return {
-        'status': 'error',
-        'message': error.message,
-      };
+      return {'status': 'error', 'message': error.message};
     } on PostgrestException catch (error) {
       return {
         'status': 'error',
@@ -85,12 +85,12 @@ class AuthService {
       };
     } on FunctionException catch (error) {
       final details = error.details;
-      final message = details is Map
-          ? details['message']?.toString()
-          : null;
+      final message = details is Map ? details['message']?.toString() : null;
       return {
         'status': 'error',
-        'message': message ?? 'Login dengan nomor induk gagal. Periksa deployment Edge Function.',
+        'message':
+            message ??
+            'Login dengan nomor induk gagal. Periksa deployment Edge Function.',
       };
     } catch (e) {
       return {'status': 'error', 'message': 'Gagal login ke Supabase: $e'};
@@ -135,7 +135,10 @@ class AuthService {
     await prefs.setString('user_id', user['id'].toString());
     await prefs.setString('auth_user_id', user['auth_user_id'].toString());
     await prefs.setString('nomor_induk', user['nomor_induk']?.toString() ?? '');
-    await prefs.setString('nama_lengkap', user['nama_lengkap']?.toString() ?? '');
+    await prefs.setString(
+      'nama_lengkap',
+      user['nama_lengkap']?.toString() ?? '',
+    );
     await prefs.setString('role', user['role']?.toString() ?? 'siswa');
     final classId = user['kelas_id'];
     if (classId == null) {
@@ -157,37 +160,41 @@ class AuthService {
     return profile;
   }
 
-  static Future<Map<String, dynamic>> register(Map<String, dynamic> dataRegistrasi) async {
+  static Future<Map<String, dynamic>> register(
+    Map<String, dynamic> dataRegistrasi,
+  ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/register.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(dataRegistrasi),
+      final response = await Supabase.instance.client.functions.invoke(
+        'admin-create-user',
+        body: dataRegistrasi,
       );
-
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        if (response.statusCode >= 200 &&
-            response.statusCode < 300) {
-          return decoded;
-        }
-        return {
-          ...decoded,
-          'status': 'error',
-          'message': decoded['message'] ??
-              'Pendaftaran gagal (HTTP ${response.statusCode}).',
-        };
+      final data = response.data;
+      if (response.status >= 200 && response.status < 300 && data is Map) {
+        return {...Map<String, dynamic>.from(data), 'status': 'success'};
       }
+
+      final message = data is Map ? data['message']?.toString() : null;
       return {
         'status': 'error',
-        'message': 'Respons pendaftaran tidak valid (HTTP ${response.statusCode}).',
+        'message': message ?? 'Pendaftaran akun gagal.',
+      };
+    } on FunctionException catch (error) {
+      final details = error.details;
+      final message = details is Map ? details['message']?.toString() : null;
+      return {
+        'status': 'error',
+        'message':
+            message ??
+            'Pendaftaran gagal. Periksa koneksi dan fungsi Supabase.',
       };
     } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi kesalahan jaringan: $e'};
+      return {'status': 'error', 'message': 'Gagal mendaftarkan akun: $e'};
     }
   }
 
-  static Future<Map<String, dynamic>> gantiPassword(Map<String, dynamic> dataInput) async {
+  static Future<Map<String, dynamic>> gantiPassword(
+    Map<String, dynamic> dataInput,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/change_password.php'),
