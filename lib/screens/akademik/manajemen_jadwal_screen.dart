@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/api_config.dart';
+import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
 import 'manajemen_penugasan_mapel_screen.dart';
 
 class ManajemenJadwalScreen extends StatefulWidget {
@@ -73,20 +74,13 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
 
   Future<void> _ambilDaftarKelas() async {
     try {
-      final response = await http
-          .get(Uri.parse('${ApiConfig.baseUrl}/get_kelas.php'))
-          .timeout(const Duration(seconds: 15));
-      final decoded = jsonDecode(response.body);
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300 ||
-          decoded is! Map<String, dynamic> ||
-          decoded['status'] != 'success' ||
-          decoded['data'] is! List) {
-        throw Exception('Gagal memuat daftar kelas.');
+      final response = await KelasService.ambilDaftarKelas();
+      if (response['status'] != 'success' || response['data'] is! List) {
+        throw Exception(response['message'] ?? 'Gagal memuat daftar kelas.');
       }
       if (!mounted) return;
       setState(() {
-        _daftarKelas = (decoded['data'] as List)
+        _daftarKelas = (response['data'] as List)
             .whereType<Map>()
             .map((item) => Map<String, dynamic>.from(item))
             .toList();
@@ -98,9 +92,9 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       await _ambilJadwalDariDatabase();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat kelas: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal memuat kelas: $e')));
       }
     }
   }
@@ -154,10 +148,12 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
         return;
       }
       final url = Uri.parse('${ApiConfig.baseUrl}/get_jadwal_by_kelas.php')
-          .replace(queryParameters: {
-            'kelas_id': classId.toString(),
-            'hari': _hariTerpilih,
-          });
+          .replace(
+            queryParameters: {
+              'kelas_id': classId.toString(),
+              'hari': _hariTerpilih,
+            },
+          );
       final response = await http.get(url).timeout(const Duration(seconds: 15));
       final decoded = json.decode(response.body);
       if (response.statusCode != 200 || decoded is! Map<String, dynamic>) {
@@ -193,9 +189,11 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
   }
 
   List<Map<String, dynamic>> get _penugasanKelasTerpilih => _listPenugasan
-      .where((item) =>
-          int.tryParse(item['kelas_id']?.toString() ?? '') ==
-          _kelasIdTerpilih)
+      .where(
+        (item) =>
+            int.tryParse(item['kelas_id']?.toString() ?? '') ==
+            _kelasIdTerpilih,
+      )
       .toList();
 
   Map<String, dynamic>? _penugasanById(int? id) {
@@ -232,8 +230,9 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     if (id == null ||
         assignmentId == null ||
         _penugasanById(assignmentId) == null ||
-        !_daftarKelas.any((item) =>
-            int.tryParse(item['id'].toString()) == classId) ||
+        !_daftarKelas.any(
+          (item) => int.tryParse(item['id'].toString()) == classId,
+        ) ||
         !_daftarHari.contains(hari)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -572,8 +571,9 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                                 border: const OutlineInputBorder(),
                               ),
                               items: _daftarKelas.map((item) {
-                                final classId =
-                                    int.tryParse(item['id'].toString());
+                                final classId = int.tryParse(
+                                  item['id'].toString(),
+                                );
                                 final name = item['nama'].toString();
                                 return DropdownMenuItem<int>(
                                   value: classId,
@@ -588,12 +588,18 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                                   setState(() {
                                     _kelasIdTerpilih = v;
                                     final matchingClass = _daftarKelas
-                                        .where((item) =>
-                                            int.tryParse(item['id'].toString()) == v)
+                                        .where(
+                                          (item) =>
+                                              int.tryParse(
+                                                item['id'].toString(),
+                                              ) ==
+                                              v,
+                                        )
                                         .toList();
                                     _kelasTerpilih = matchingClass.isEmpty
                                         ? ''
-                                        : matchingClass.first['nama'].toString();
+                                        : matchingClass.first['nama']
+                                              .toString();
                                     _kelasMapelTerpilihId = null;
                                   });
                                   _ambilJadwalDariDatabase();

@@ -1641,7 +1641,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             : RaporSiswaScreen(idSiswa: widget.extraData['id'].toString());
       case 2:
         return (widget.role == 'admin')
-            ? RegisterFormScreen(pembuatRole: widget.role)
+            ? RegisterFormScreen(
+                pembuatRole: widget.role,
+                onRegistrationSuccess: _muatRingkasanAdmin,
+              )
             : (widget.role == 'guru')
             ? AkademikGuruScreen(
                 namaGuru: widget.namaUser,
@@ -1710,7 +1713,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           setState(() {
             _currentIndex = index;
           });
-          if (index == 0) _muatUlangEventHome();
+          if (index == 0) {
+            _muatUlangEventHome();
+            if (widget.role == 'admin') _muatRingkasanAdmin();
+          }
         },
         type: BottomNavigationBarType.fixed,
         backgroundColor: widget.statusTemaGelap

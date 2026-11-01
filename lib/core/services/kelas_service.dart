@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api_config.dart';
 
 class KelasService {
@@ -14,7 +15,10 @@ class KelasService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
-      return {'status': 'error', 'message': 'Gagal memuat data kelas dari server'};
+      return {
+        'status': 'error',
+        'message': 'Gagal memuat data kelas dari server',
+      };
     } catch (e) {
       return {'status': 'error', 'message': 'Terjadi kesalahan koneksi: $e'};
     }
@@ -22,11 +26,19 @@ class KelasService {
 
   static Future<Map<String, dynamic>> ambilDaftarKelas() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/get_kelas.php'));
-      if (response.statusCode == 200) return jsonDecode(response.body);
-      return {'status': 'error', 'message': 'Gagal memuat daftar kelas.'};
+      final response = await Supabase.instance.client
+          .from('kelas')
+          .select('id, nama')
+          .eq('aktif', true)
+          .order('nama');
+      return {'status': 'success', 'data': response};
+    } on PostgrestException catch (error) {
+      return {'status': 'error', 'message': error.message};
     } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi kesalahan koneksi: $e'};
+      return {
+        'status': 'error',
+        'message': 'Gagal memuat kelas dari Supabase: $e',
+      };
     }
   }
 }

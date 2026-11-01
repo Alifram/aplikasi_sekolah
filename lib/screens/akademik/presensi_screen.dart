@@ -1,9 +1,7 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/presensi_service.dart';
-import 'package:aplikasi_sekolah/core/services/api_config.dart';
+import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
 
 class PresensiScreen extends StatefulWidget {
   final String userId;
@@ -70,20 +68,13 @@ class _PresensiScreenState extends State<PresensiScreen> {
 
   Future<void> _muatKelas() async {
     try {
-      final response = await http
-          .get(Uri.parse('${ApiConfig.baseUrl}/get_kelas.php'))
-          .timeout(const Duration(seconds: 15));
-      final decoded = jsonDecode(response.body);
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300 ||
-          decoded is! Map<String, dynamic> ||
-          decoded['status'] != 'success' ||
-          decoded['data'] is! List) {
-        throw Exception('Gagal memuat daftar kelas.');
+      final response = await KelasService.ambilDaftarKelas();
+      if (response['status'] != 'success' || response['data'] is! List) {
+        throw Exception(response['message'] ?? 'Gagal memuat daftar kelas.');
       }
       if (!mounted) return;
       setState(() {
-        _kelas = (decoded['data'] as List)
+        _kelas = (response['data'] as List)
             .whereType<Map>()
             .map((item) => Map<String, dynamic>.from(item))
             .toList();

@@ -5,8 +5,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RegisterFormScreen extends StatefulWidget {
   final String pembuatRole;
+  final Future<void> Function()? onRegistrationSuccess;
 
-  const RegisterFormScreen({super.key, required this.pembuatRole});
+  const RegisterFormScreen({
+    super.key,
+    required this.pembuatRole,
+    this.onRegistrationSuccess,
+  });
 
   @override
   State<RegisterFormScreen> createState() => _RegisterFormScreenState();
@@ -133,6 +138,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
         AppColors.primary,
       );
       _bersihkanFormulir();
+      await widget.onRegistrationSuccess?.call();
     } else {
       _tampilkanNotifikasi(
         res['message'] ?? 'Pendaftaran akun gagal dilakukan.',
