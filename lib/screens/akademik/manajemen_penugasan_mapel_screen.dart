@@ -1,14 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
-import 'package:aplikasi_sekolah/core/services/api_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ManajemenPenugasanMapelScreen extends StatefulWidget {
-  final String userId;
-
-  const ManajemenPenugasanMapelScreen({super.key, required this.userId});
+  const ManajemenPenugasanMapelScreen({super.key});
 
   @override
   State<ManajemenPenugasanMapelScreen> createState() =>
@@ -27,8 +22,10 @@ class _ManajemenPenugasanMapelScreenState
   int? _mapelId;
   int? _guruId;
   bool _isLoading = true;
+  bool _isLoadingGuru = false;
   bool _isSaving = false;
   String? _error;
+  int _teacherLoadRequest = 0;
 
   @override
   void initState() {
@@ -45,55 +42,37 @@ class _ManajemenPenugasanMapelScreenState
     super.dispose();
   }
 
-  Future<Map<String, dynamic>> _getJson(Uri uri) async {
-    final response = await http.get(uri).timeout(const Duration(seconds: 15));
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('Respons server tidak valid.');
-    }
-    if (response.statusCode < 200 ||
-        response.statusCode >= 300 ||
-        decoded['status'] != 'success') {
-      throw Exception(decoded['message'] ?? 'Permintaan gagal.');
-    }
-    return decoded;
-  }
-
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
     try {
-      final referenceQuery = <String, String>{'user_id': widget.userId};
-      if (_kelasId != null) referenceQuery['kelas_id'] = _kelasId.toString();
-      final referenceUri = Uri.parse(
-        '${ApiConfig.baseUrl}/get_referensi_penugasan.php',
-      ).replace(queryParameters: referenceQuery);
-      final assignmentUri = Uri.parse(
-        '${ApiConfig.baseUrl}/get_kelas_mapel.php',
+      final response = await Supabase.instance.client.rpc(
+        'get_admin_assignment_data',
+        params: {'p_kelas_id': _kelasId},
       );
-      final responses = await Future.wait([
-        _getJson(referenceUri),
-        _getJson(assignmentUri),
-      ]);
-      final referenceData = responses[0]['data'];
-      final assignmentData = responses[1]['data'];
-      if (referenceData is! Map ||
-          referenceData['kelas'] is! List ||
-          referenceData['mata_pelajaran'] is! List ||
-          referenceData['guru'] is! List ||
-          assignmentData is! List) {
+      if (response is! Map ||
+          response['kelas'] is! List ||
+          response['mata_pelajaran'] is! List ||
+          response['guru'] is! List ||
+          response['penugasan'] is! List) {
         throw const FormatException('Data referensi penugasan tidak lengkap.');
       }
       if (!mounted) return;
       setState(() {
-        _kelas = _maps(referenceData['kelas']);
-        _mapel = _maps(referenceData['mata_pelajaran']);
-        _guru = _maps(referenceData['guru']);
-        _penugasan = _maps(assignmentData);
+        _kelas = _maps(response['kelas']);
+        _mapel = _maps(response['mata_pelajaran']);
+        _guru = _maps(response['guru']);
+        _penugasan = _maps(response['penugasan']);
         _error = null;
       });
+    } on PostgrestException catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = 'Gagal memuat data penugasan: ${error.message}',
+        );
+      }
     } catch (e) {
       if (mounted) setState(() => _error = 'Gagal memuat data penugasan: $e');
     } finally {
@@ -107,26 +86,45 @@ class _ManajemenPenugasanMapelScreenState
       .toList();
 
   Future<void> _loadTeachersForClass(int? classId) async {
+    final requestId = ++_teacherLoadRequest;
     setState(() {
       _guru = [];
       _guruId = null;
+      _isLoadingGuru = classId != null;
     });
-    if (classId == null) return;
+    if (classId == null) {
+      if (mounted) setState(() => _isLoadingGuru = false);
+      return;
+    }
     try {
-      final uri = Uri.parse(
-        '${ApiConfig.baseUrl}/get_referensi_penugasan.php',
-      ).replace(queryParameters: {
-        'user_id': widget.userId,
-        'kelas_id': classId.toString(),
-      });
-      final response = await _getJson(uri);
-      final data = response['data'];
-      if (data is! Map || data['guru'] is! List) {
+      final response = await Supabase.instance.client.rpc(
+        'get_admin_assignment_data',
+        params: {'p_kelas_id': classId},
+      );
+      if (response is! Map || response['guru'] is! List) {
         throw const FormatException('Daftar guru kelas tidak valid.');
       }
-      if (mounted) setState(() => _guru = _maps(data['guru']));
+      final teachers = _maps(response['guru']).where((teacher) {
+        final jenisGuru = teacher['jenis_guru']?.toString();
+        if (jenisGuru == 'guru_mapel') return true;
+        if (jenisGuru != 'guru_kelas') return false;
+        return int.tryParse(teacher['kelas_id'].toString()) == classId;
+      }).toList();
+      if (mounted && requestId == _teacherLoadRequest && _kelasId == classId) {
+        setState(() => _guru = teachers);
+      }
+    } on PostgrestException catch (error) {
+      if (mounted && requestId == _teacherLoadRequest) {
+        _showMessage('Gagal memuat guru kelas: ${error.message}', error: true);
+      }
     } catch (e) {
-      if (mounted) _showMessage('Gagal memuat guru kelas: $e', error: true);
+      if (mounted && requestId == _teacherLoadRequest) {
+        _showMessage('Gagal memuat guru kelas: $e', error: true);
+      }
+    } finally {
+      if (mounted && requestId == _teacherLoadRequest) {
+        setState(() => _isLoadingGuru = false);
+      }
     }
   }
 
@@ -138,27 +136,19 @@ class _ManajemenPenugasanMapelScreenState
     }
     setState(() => _isSaving = true);
     try {
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/save_kelas_mapel.php'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'user_id': widget.userId,
-              'kelas_id': _kelasId,
-              'mata_pelajaran_id': _mapelId,
-              'guru_id': _guruId,
-              'tahun_ajaran': _tahunAjaranController.text.trim(),
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Respons server tidak valid.');
-      }
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300 ||
-          decoded['status'] != 'success') {
-        throw Exception(decoded['message'] ?? 'Gagal menyimpan penugasan.');
+      final response = await Supabase.instance.client.rpc(
+        'admin_create_class_subject_assignment',
+        params: {
+          'p_kelas_id': _kelasId,
+          'p_mata_pelajaran_id': _mapelId,
+          'p_guru_id': _guruId,
+          'p_tahun_ajaran': _tahunAjaranController.text.trim(),
+        },
+      );
+      if (response is! Map || response['status'] != 'success') {
+        throw const FormatException(
+          'Respons penyimpanan penugasan tidak valid.',
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -166,8 +156,14 @@ class _ManajemenPenugasanMapelScreenState
         _mapelId = null;
         _guruId = null;
       });
-      _showMessage(decoded['message']?.toString() ?? 'Penugasan disimpan.');
+      _showMessage(response['message']?.toString() ?? 'Penugasan disimpan.');
       await _loadData();
+    } on PostgrestException catch (error) {
+      if (!mounted) return;
+      final message = error.code == '23505'
+          ? 'Penugasan kelas dan mata pelajaran untuk tahun ajaran tersebut sudah ada.'
+          : error.message;
+      _showMessage('Gagal menyimpan penugasan: $message', error: true);
     } catch (e) {
       if (mounted) _showMessage('Gagal menyimpan penugasan: $e', error: true);
     } finally {
@@ -299,6 +295,13 @@ class _ManajemenPenugasanMapelScreenState
                               labelText: 'Guru pengampu',
                               border: OutlineInputBorder(),
                             ),
+                            hint: Text(
+                              _isLoadingGuru
+                                  ? 'Memuat guru...'
+                                  : _kelasId == null
+                                  ? 'Pilih kelas terlebih dahulu'
+                                  : 'Tidak ada guru',
+                            ),
                             items: _guru
                                 .map(
                                   (item) => DropdownMenuItem<int>(
@@ -309,12 +312,22 @@ class _ManajemenPenugasanMapelScreenState
                                   ),
                                 )
                                 .toList(),
-                            onChanged: _guru.isEmpty
+                            onChanged: _isLoadingGuru || _guru.isEmpty
                                 ? null
                                 : (value) => setState(() => _guruId = value),
                             validator: (value) =>
                                 value == null ? 'Pilih guru pengampu' : null,
                           ),
+                          if (_kelasId != null &&
+                              !_isLoadingGuru &&
+                              _guru.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Text(
+                                'Tidak ada guru.',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _tahunAjaranController,
@@ -340,7 +353,8 @@ class _ManajemenPenugasanMapelScreenState
                           ),
                           const SizedBox(height: 16),
                           FilledButton.icon(
-                            onPressed: _isSaving ||
+                            onPressed:
+                                _isSaving ||
                                     _kelas.isEmpty ||
                                     _mapel.isEmpty ||
                                     _guru.isEmpty

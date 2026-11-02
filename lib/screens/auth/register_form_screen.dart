@@ -25,6 +25,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   String _selectedRole = 'siswa';
+  String? _selectedJenisGuru;
   bool _isLoading = false;
   bool _isLoadingKelas = true;
   String? _kelasError;
@@ -102,6 +103,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
           ? null
           : int.tryParse(_kelas.first['id'].toString());
       _selectedAngkatanSiswa = DateTime.now().year.toString();
+      _selectedJenisGuru = null;
     });
   }
 
@@ -122,7 +124,12 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
       "email": _emailController.text.trim(),
       "password": _passwordController.text,
       "role": _selectedRole,
-      "kelas_id": _selectedKelasId,
+      "jenis_guru": _selectedRole == 'guru' ? _selectedJenisGuru : null,
+      "kelas_id":
+          _selectedRole == 'siswa' ||
+              (_selectedRole == 'guru' && _selectedJenisGuru == 'guru_kelas')
+          ? _selectedKelasId
+          : null,
       "tahun_angkatan": _selectedRole == 'siswa'
           ? int.tryParse(_selectedAngkatanSiswa)
           : null,
@@ -207,13 +214,43 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                       value: 'siswa',
                       child: Text('Siswa / Orang Tua'),
                     ),
-                    DropdownMenuItem(value: 'guru', child: Text('Guru Kelas')),
+                    DropdownMenuItem(value: 'guru', child: Text('Guru')),
                   ],
                   onChanged: (value) {
                     setState(() {
                       _selectedRole = value!;
+                      _selectedJenisGuru = null;
                     });
                   },
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              if (_selectedRole == 'guru') ...[
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedJenisGuru,
+                  decoration: InputDecoration(
+                    labelText: 'Jenis Guru',
+                    prefixIcon: const Icon(Icons.work_outline_rounded),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'guru_kelas',
+                      child: Text('Guru Kelas'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'guru_mapel',
+                      child: Text('Guru Mata Pelajaran'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _selectedJenisGuru = value);
+                  },
+                  validator: (value) =>
+                      value == null ? 'Pilih jenis guru' : null,
                 ),
                 const SizedBox(height: 20),
               ],
@@ -263,7 +300,9 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               ),
               const SizedBox(height: 20),
 
-              if (_selectedRole == 'siswa' || _selectedRole == 'guru') ...[
+              if (_selectedRole == 'siswa' ||
+                  (_selectedRole == 'guru' &&
+                      _selectedJenisGuru == 'guru_kelas')) ...[
                 Row(
                   children: [
                     Expanded(

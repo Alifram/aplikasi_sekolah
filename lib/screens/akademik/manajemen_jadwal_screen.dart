@@ -210,8 +210,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            ManajemenPenugasanMapelScreen(userId: widget.userId),
+        builder: (context) => const ManajemenPenugasanMapelScreen(),
       ),
     );
     if (!mounted) return;
