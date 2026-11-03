@@ -243,6 +243,7 @@ class _ManajemenPenugasanMapelScreenState
                             ),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<int>(
+                            isExpanded: true,
                             value: _kelasId,
                             decoration: const InputDecoration(
                               labelText: 'Kelas',
@@ -269,6 +270,7 @@ class _ManajemenPenugasanMapelScreenState
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<int>(
+                            isExpanded: true,
                             value: _mapelId,
                             decoration: const InputDecoration(
                               labelText: 'Mata pelajaran',
@@ -290,6 +292,7 @@ class _ManajemenPenugasanMapelScreenState
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<int>(
+                            isExpanded: true,
                             value: _guruId,
                             decoration: const InputDecoration(
                               labelText: 'Guru pengampu',

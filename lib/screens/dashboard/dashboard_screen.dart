@@ -636,7 +636,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           MaterialPageRoute(
                             builder: (context) => ManajemenJadwalScreen(
                               statusTemaGelap: widget.statusTemaGelap,
-                              userId: widget.extraData['id'].toString(),
                             ),
                           ),
                         );
@@ -728,10 +727,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             builder: (context) => TampilanJadwalScreen(
                               roleUser: widget.role,
                               namaLengkapUser: widget.namaUser,
-                              userId: widget.extraData['id'].toString(),
-                              kelasId:
-                                  widget.extraData['kelas_id']?.toString() ??
-                                  '',
                               statusTemaGelap: widget.statusTemaGelap,
                             ),
                           ),
@@ -783,10 +778,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             builder: (context) => TampilanJadwalScreen(
                               roleUser: widget.role,
                               namaLengkapUser: widget.namaUser,
-                              userId: widget.extraData['id'].toString(),
-                              kelasId:
-                                  widget.extraData['kelas_id']?.toString() ??
-                                  '',
                               statusTemaGelap: widget.statusTemaGelap,
                             ),
                           ),

@@ -1,19 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
-import 'package:aplikasi_sekolah/core/services/api_config.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'manajemen_penugasan_mapel_screen.dart';
 
 class ManajemenJadwalScreen extends StatefulWidget {
   final bool statusTemaGelap;
-  final String userId;
-  const ManajemenJadwalScreen({
-    super.key,
-    required this.statusTemaGelap,
-    required this.userId,
-  });
+  const ManajemenJadwalScreen({super.key, required this.statusTemaGelap});
 
   @override
   State<ManajemenJadwalScreen> createState() => _ManajemenJadwalScreenState();
@@ -53,6 +46,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
   List<dynamic> _listJadwalAktif = [];
   bool _isJadwalLoading = false;
   String _jadwalError = '';
+  int _jadwalLoadRequest = 0;
 
   List<Map<String, dynamic>> _daftarKelas = [];
   final List<String> _daftarHari = [
@@ -108,20 +102,15 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
 
   Future<void> _ambilDaftarPenugasan() async {
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}/get_kelas_mapel.php');
-      final response = await http.get(uri).timeout(const Duration(seconds: 15));
-      final decoded = json.decode(response.body);
-      if (response.statusCode != 200 ||
-          decoded is! Map<String, dynamic> ||
-          decoded['status'] != 'success' ||
-          decoded['data'] is! List) {
-        throw Exception(
-          decoded is Map<String, dynamic>
-              ? decoded['message'] ?? 'Gagal memuat penugasan mapel.'
-              : 'Respons server penugasan mapel tidak valid.',
+      final response = await Supabase.instance.client.rpc(
+        'get_admin_assignment_data',
+      );
+      if (response is! Map || response['penugasan'] is! List) {
+        throw const FormatException(
+          'Respons data penugasan mapel tidak valid.',
         );
       }
-      final assignments = (decoded['data'] as List)
+      final assignments = (response['penugasan'] as List)
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
           .toList();
@@ -139,41 +128,40 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
 
   // 🌍 FUNGSI AMBIL DATA JADWAL (GET)
   Future<void> _ambilJadwalDariDatabase() async {
+    final requestId = ++_jadwalLoadRequest;
     setState(() => _isJadwalLoading = true);
     _jadwalError = '';
     try {
       final classId = _kelasIdTerpilih;
       if (classId == null) {
-        setState(() => _listJadwalAktif = []);
+        if (mounted && requestId == _jadwalLoadRequest) {
+          setState(() => _listJadwalAktif = []);
+        }
         return;
       }
-      final url = Uri.parse('${ApiConfig.baseUrl}/get_jadwal_by_kelas.php')
-          .replace(
-            queryParameters: {
-              'kelas_id': classId.toString(),
-              'hari': _hariTerpilih,
-            },
-          );
-      final response = await http.get(url).timeout(const Duration(seconds: 15));
-      final decoded = json.decode(response.body);
-      if (response.statusCode != 200 || decoded is! Map<String, dynamic>) {
+      final response = await Supabase.instance.client.rpc(
+        'admin_get_schedule_data',
+        params: {'p_kelas_id': classId, 'p_hari': _hariTerpilih},
+      );
+      if (response is! List) {
         throw const FormatException('Respons server jadwal tidak valid.');
       }
-      if (decoded['status'] != 'success' || decoded['data'] is! List) {
-        throw Exception(decoded['message'] ?? 'Gagal memuat jadwal.');
-      }
-      if (mounted) {
-        setState(() => _listJadwalAktif = decoded['data'] as List<dynamic>);
+      if (mounted &&
+          requestId == _jadwalLoadRequest &&
+          _kelasIdTerpilih == classId) {
+        setState(() => _listJadwalAktif = response);
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && requestId == _jadwalLoadRequest) {
         setState(() {
           _jadwalError = 'Gagal memuat jadwal: $e';
           _listJadwalAktif = [];
         });
       }
     } finally {
-      if (mounted) setState(() => _isJadwalLoading = false);
+      if (mounted && requestId == _jadwalLoadRequest) {
+        setState(() => _isJadwalLoading = false);
+      }
     }
   }
 
@@ -300,25 +288,18 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/delete_jadwal.php'),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({'id': id, 'user_id': widget.userId}),
-          )
-          .timeout(const Duration(seconds: 15));
-      final decoded = json.decode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Respons server tidak valid.');
-      }
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300 ||
-          decoded['status'] != 'success') {
-        throw Exception(decoded['message'] ?? 'Gagal menghapus jadwal.');
+      final response = await Supabase.instance.client.rpc(
+        'admin_delete_schedule',
+        params: {'p_id': id},
+      );
+      if (response is! Map || response['status'] != 'success') {
+        throw const FormatException('Respons penghapusan jadwal tidak valid.');
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(decoded['message'] ?? 'Jadwal dihapus.')),
+        SnackBar(
+          content: Text(response['message']?.toString() ?? 'Jadwal dihapus.'),
+        ),
       );
       if (_jadwalEditId == id) _resetFormJadwal();
       await _ambilJadwalDariDatabase();
@@ -365,55 +346,38 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     final String formatSelesai =
         '${_jamSelesai.hour.toString().padLeft(2, '0')}:${_jamSelesai.minute.toString().padLeft(2, '0')}:00';
 
-    final dataPayload = {
-      'user_id': widget.userId,
-      if (_jadwalEditId != null) 'id': _jadwalEditId,
-      'kelas_mapel_id': _kelasMapelTerpilihId,
-      'hari': _hariTerpilih,
-      'jam_mulai': formatMulai,
-      'jam_selesai': formatSelesai,
-      'ruangan': _ruanganController.text.trim(),
-    };
-
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/save_jadwal.php');
-      final response = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode(dataPayload),
-          )
-          .timeout(const Duration(seconds: 15));
-
+      final response = await Supabase.instance.client.rpc(
+        'admin_save_schedule',
+        params: {
+          'p_id': _jadwalEditId,
+          'p_kelas_mapel_id': _kelasMapelTerpilihId,
+          'p_hari': _hariTerpilih,
+          'p_jam_mulai': formatMulai,
+          'p_jam_selesai': formatSelesai,
+          'p_ruangan': _ruanganController.text.trim(),
+        },
+      );
       if (!mounted) return;
-      final dataRespon = json.decode(response.body);
-      if (dataRespon is Map<String, dynamic> &&
-          response.statusCode >= 200 &&
-          response.statusCode < 300 &&
-          dataRespon['status'] == 'success') {
-        final message =
-            dataRespon['message']?.toString() ??
-            (_jadwalEditId == null
-                ? 'Jadwal berhasil disimpan.'
-                : 'Jadwal berhasil diperbarui.');
-        _resetFormJadwal();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.green),
-        );
-        await _ambilJadwalDariDatabase();
-      } else {
+      if (response is! Map || response['status'] != 'success') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              dataRespon is Map<String, dynamic>
-                  ? dataRespon['message']?.toString() ??
-                        'Gagal menyimpan jadwal.'
-                  : 'Respons server tidak valid.',
-            ),
+            content: const Text('Respons penyimpanan jadwal tidak valid.'),
             backgroundColor: Colors.red,
           ),
         );
+        return;
       }
+      final message =
+          response['message']?.toString() ??
+          (_jadwalEditId == null
+              ? 'Jadwal berhasil disimpan.'
+              : 'Jadwal berhasil diperbarui.');
+      _resetFormJadwal();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.green),
+      );
+      await _ambilJadwalDariDatabase();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -632,8 +596,10 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                                 );
                               }).toList(),
                               onChanged: (v) {
-                                if (v != null)
+                                if (v != null) {
                                   setState(() => _hariTerpilih = v);
+                                  _ambilJadwalDariDatabase();
+                                }
                               },
                             ),
                           ),
