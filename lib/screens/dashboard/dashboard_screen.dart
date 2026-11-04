@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
 import 'package:aplikasi_sekolah/core/services/api_config.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../akademik/manajemen_jadwal_screen.dart';
 import '../akademik/manajemen_penugasan_mapel_screen.dart';
 import '../akademik/manajemen_mata_pelajaran_screen.dart';
@@ -36,7 +40,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _isStatistikLoading = true;
   bool _isEventsLoading = true;
@@ -52,6 +57,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _totalGuru = 0;
   int _totalKelas = 0;
   int _totalPengumuman = 0;
+  Timer? _scheduleAlarmTimer;
+  List<Map<String, dynamic>> _scheduleAlarmItems = [];
+  DateTime? _scheduleAlarmLoadedAt;
+  DateTime? _scheduleAlarmLastAttemptAt;
+  bool _isLoadingScheduleAlarm = false;
+  final Set<String> _firedScheduleAlarms = {};
 
   List<String> get _daftarOpsiAngkatan {
     int tahunSekarang = DateTime.now().year;
@@ -67,7 +78,163 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _panggilDataAwal();
+    if (_supportsScheduleAlarm) {
+      _startScheduleAlarmMonitor();
+    }
+  }
+
+  bool get _supportsScheduleAlarm =>
+      widget.role == 'guru' || widget.role == 'siswa';
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_supportsScheduleAlarm) return;
+    if (state == AppLifecycleState.resumed) {
+      _startScheduleAlarmMonitor();
+      unawaited(_loadScheduleAlarmData());
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _scheduleAlarmTimer?.cancel();
+      _scheduleAlarmTimer = null;
+    }
+  }
+
+  void _startScheduleAlarmMonitor() {
+    if (_scheduleAlarmTimer != null) return;
+    _scheduleAlarmTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_checkScheduleAlarm()),
+    );
+    unawaited(_checkScheduleAlarm());
+  }
+
+  String? _weekdayFor(DateTime date) {
+    const weekdays = {
+      DateTime.monday: 'Senin',
+      DateTime.tuesday: 'Selasa',
+      DateTime.wednesday: 'Rabu',
+      DateTime.thursday: 'Kamis',
+      DateTime.friday: 'Jumat',
+      DateTime.saturday: 'Sabtu',
+    };
+    return weekdays[date.weekday];
+  }
+
+  String _currentAcademicYear(DateTime date) {
+    final startYear = date.month >= 7 ? date.year : date.year - 1;
+    return '$startYear/${startYear + 1}';
+  }
+
+  Future<void> _checkScheduleAlarm() async {
+    if (!_supportsScheduleAlarm || !mounted || _isLoadingScheduleAlarm) return;
+    final now = DateTime.now();
+    final lastAttempt = _scheduleAlarmLastAttemptAt;
+    final needsRefresh =
+        _scheduleAlarmLoadedAt == null ||
+        now.difference(_scheduleAlarmLoadedAt!) >= const Duration(minutes: 10);
+    final canRetry =
+        lastAttempt == null ||
+        now.difference(lastAttempt) >= const Duration(minutes: 1);
+    if (needsRefresh && canRetry) {
+      await _loadScheduleAlarmData();
+    }
+
+    final today = _weekdayFor(now);
+    if (today == null) return;
+    final academicYear = _currentAcademicYear(now);
+    for (final schedule in _scheduleAlarmItems) {
+      if (schedule['hari']?.toString() != today ||
+          schedule['tahun_ajaran']?.toString() != academicYear) {
+        continue;
+      }
+
+      final startTime =
+          schedule['jam_mulai_format']?.toString() ??
+          schedule['jam_mulai']?.toString();
+      if (startTime == null || startTime.length < 5) continue;
+      final parts = startTime.substring(0, 5).split(':');
+      if (parts.length != 2) continue;
+      final hour = int.tryParse(parts[0]);
+      final minute = int.tryParse(parts[1]);
+      if (hour == null || minute == null) continue;
+
+      final start = DateTime(now.year, now.month, now.day, hour, minute);
+      final elapsed = now.difference(start);
+      if (elapsed.isNegative || elapsed >= const Duration(minutes: 1)) {
+        continue;
+      }
+
+      final id =
+          schedule['id']?.toString() ??
+          '${schedule['mata_pelajaran']}:$startTime';
+      final alarmKey = '${now.year}-${now.month}-${now.day}:$id';
+      if (_firedScheduleAlarms.add(alarmKey)) {
+        unawaited(_notifyScheduleStart(schedule, startTime));
+      }
+    }
+  }
+
+  Future<void> _loadScheduleAlarmData() async {
+    if (_isLoadingScheduleAlarm || !_supportsScheduleAlarm) return;
+    _isLoadingScheduleAlarm = true;
+    _scheduleAlarmLastAttemptAt = DateTime.now();
+    try {
+      final weekday = _weekdayFor(DateTime.now());
+      if (weekday == null) {
+        _scheduleAlarmItems = [];
+        _scheduleAlarmLoadedAt = DateTime.now();
+        return;
+      }
+      final response = await Supabase.instance.client.rpc(
+        'get_my_schedule',
+        params: {'p_hari': weekday},
+      );
+      if (response is! List) {
+        throw const FormatException('Respons jadwal alarm tidak valid.');
+      }
+      _scheduleAlarmItems = response
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      _scheduleAlarmLoadedAt = DateTime.now();
+    } catch (error) {
+      debugPrint('Gagal memuat jadwal untuk alarm pergantian jam: $error');
+    } finally {
+      _isLoadingScheduleAlarm = false;
+    }
+  }
+
+  Future<void> _notifyScheduleStart(
+    Map<String, dynamic> schedule,
+    String startTime,
+  ) async {
+    try {
+      await SystemSound.play(SystemSoundType.alert);
+      await HapticFeedback.vibrate();
+    } catch (error) {
+      debugPrint('Alarm suara/getar tidak tersedia di perangkat ini: $error');
+    }
+    if (!mounted) return;
+
+    final subject = schedule['mata_pelajaran']?.toString() ?? 'pelajaran';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Pergantian jam: $subject dimulai pukul $startTime.'),
+          duration: const Duration(seconds: 8),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _scheduleAlarmTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _panggilDataAwal() async {
