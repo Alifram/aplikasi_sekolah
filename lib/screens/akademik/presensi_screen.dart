@@ -2,16 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/presensi_service.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
+import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 
 class PresensiScreen extends StatefulWidget {
-  final String userId;
   final String role;
   final String? kelasIdUser;
   final bool statusTemaGelap;
 
   const PresensiScreen({
     super.key,
-    required this.userId,
     required this.role,
     required this.kelasIdUser,
     required this.statusTemaGelap,
@@ -80,7 +79,14 @@ class _PresensiScreenState extends State<PresensiScreen> {
             .toList();
       });
     } catch (e) {
-      if (mounted) setState(() => _error = 'Gagal memuat kelas: $e');
+      if (mounted) {
+        setState(
+          () => _error = AppErrorMessage.from(
+            e,
+            fallback: 'Daftar kelas belum dapat dimuat. Silakan coba lagi.',
+          ),
+        );
+      }
     }
   }
 
@@ -149,7 +155,6 @@ class _PresensiScreenState extends State<PresensiScreen> {
       );
 
     final previous = await PresensiService.ambilPresensi(
-      userId: widget.userId,
       kelasId: _kelasDipilih,
       tanggal: _tanggalApi,
     );
@@ -176,7 +181,6 @@ class _PresensiScreenState extends State<PresensiScreen> {
 
   Future<void> _muatRiwayat() async {
     final response = await PresensiService.ambilPresensi(
-      userId: widget.userId,
       kelasId: _isAdmin ? _kelasDipilih : null,
       tanggal: _tanggalApi,
     );
@@ -250,7 +254,6 @@ class _PresensiScreenState extends State<PresensiScreen> {
     }).toList();
 
     final response = await PresensiService.simpanPresensi(
-      userId: widget.userId,
       kelasId: _kelasDipilih!,
       tanggal: _tanggalApi,
       presensi: rows,
