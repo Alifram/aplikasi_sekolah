@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
+import 'app_error_message.dart';
 
 class AdminService {
   static const String baseUrl = ApiConfig.baseUrl;
@@ -15,21 +17,51 @@ class AdminService {
       }
       return {'status': 'error', 'message': 'Gagal memuat database pengguna.'};
     } catch (e) {
-      return {'status': 'error', 'message': 'Kesalahan jaringan: $e'};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Data pengguna belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
-  static Future<Map<String, dynamic>> ambilDataNilai(String userId, String role) async {
+  static Future<Map<String, dynamic>> ambilDataNilai(
+    String userId,
+    String role,
+  ) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/get_nilai.php?user_id=$userId&role=$role'),
+      final response = await Supabase.instance.client.rpc(
+        'get_admin_grade_history',
+        params: {'p_target_user_id': int.tryParse(userId)},
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      if (response is! Map ||
+          response['status'] != 'success' ||
+          response['data'] is! List ||
+          response['type']?.toString() != role) {
+        return {
+          'status': 'error',
+          'message': 'Respons riwayat nilai Supabase tidak valid.',
+        };
       }
-      return {'status': 'error', 'message': 'Gagal memuat rekam jejak nilai.'};
+      return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Riwayat nilai belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
     } catch (e) {
-      return {'status': 'error', 'message': 'Kesalahan jaringan: $e'};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Riwayat nilai belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
@@ -53,27 +85,42 @@ class AdminService {
       }
       return {'status': 'error', 'message': 'Gagal memperbarui data kelas.'};
     } catch (e) {
-      return {'status': 'error', 'message': 'Kesalahan jaringan: $e'};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Perubahan kelas belum berhasil. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
-  static Future<Map<String, dynamic>> ubahStatusAksesAkun(String idUser, int statusBaru) async {
+  static Future<Map<String, dynamic>> ubahStatusAksesAkun(
+    String idUser,
+    int statusBaru,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/ubah_status_akses.php'),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "user_id": idUser,
-          "status_baru": statusBaru,
-        }),
+        body: jsonEncode({"user_id": idUser, "status_baru": statusBaru}),
       );
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
-      return {'status': 'error', 'message': 'Gagal merespons server (${response.statusCode})'};
+      return {
+        'status': 'error',
+        'message': 'Gagal merespons server (${response.statusCode})',
+      };
     } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi gangguan jaringan: $e'};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Status akun belum berhasil diperbarui. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
@@ -114,7 +161,13 @@ class AdminService {
         'message': 'Server mengirim respons kenaikan kelas yang tidak valid.',
       };
     } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi kegagalan koneksi jaringan: $e'};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Kenaikan kelas belum berhasil diproses. Silakan coba lagi.',
+        ),
+      };
     }
   }
 }

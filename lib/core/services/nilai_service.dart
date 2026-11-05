@@ -1,37 +1,9 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'api_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app_error_message.dart';
 
 class NilaiService {
-  static const String baseUrl = ApiConfig.baseUrl;
-  static final Map<String, List<Map<String, dynamic>>>
-      _penugasanCacheByGuru = {};
-
-  static Map<String, dynamic> _decodeResponse(
-    http.Response response, {
-    required String fallbackMessage,
-  }) {
-    try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic> &&
-          response.statusCode >= 200 &&
-          response.statusCode < 300) {
-        return decoded;
-      }
-      if (decoded is Map<String, dynamic>) {
-        return {
-          ...decoded,
-          'status': 'error',
-          'message':
-              decoded['message'] ??
-              '$fallbackMessage (HTTP ${response.statusCode}).',
-        };
-      }
-      return {'status': 'error', 'message': fallbackMessage};
-    } on FormatException {
-      return {'status': 'error', 'message': fallbackMessage};
-    }
-  }
+  static final Map<String, List<Map<String, dynamic>>> _penugasanCacheByGuru =
+      {};
 
   static Future<Map<String, dynamic>> ambilPenugasanMapel({
     required String guruId,
@@ -46,15 +18,14 @@ class NilaiService {
             .toList(),
       };
     }
+
     try {
-      final uri = Uri.parse(
-        '$baseUrl/get_kelas_mapel.php',
-      ).replace(queryParameters: {'guru_id': guruId});
-      final response = await http.get(uri).timeout(const Duration(seconds: 15));
-      final result = _decodeResponse(
+      final response = await Supabase.instance.client.rpc(
+        'get_teacher_grade_assignments',
+      );
+      final result = _asResult(
         response,
-        fallbackMessage:
-            'Gagal memuat penugasan mapel (HTTP ${response.statusCode}).',
+        'Respons penugasan mapel tidak valid.',
       );
       final assignments = result['data'];
       if (result['status'] == 'success' && assignments is List) {
@@ -63,32 +34,51 @@ class NilaiService {
             .map((item) => Map<String, dynamic>.from(item))
             .toList();
         _penugasanCacheByGuru[guruId] = parsedAssignments;
-        return {
-          ...result,
-          'data': parsedAssignments
-              .map((assignment) => Map<String, dynamic>.from(assignment))
-              .toList(),
-        };
+        return {...result, 'data': parsedAssignments};
       }
       return result;
-    } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi kesalahan koneksi: $e'};
+    } on PostgrestException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Penugasan mata pelajaran belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
+    } catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          error,
+          fallback: 'Penugasan mata pelajaran belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
   static Future<Map<String, dynamic>> ambilSiswa(int kelasId) async {
     try {
-      final uri = Uri.parse(
-        '$baseUrl/get_siswa_by_kelas.php',
-      ).replace(queryParameters: {'kelas_id': kelasId.toString()});
-      final response = await http.get(uri).timeout(const Duration(seconds: 15));
-      return _decodeResponse(
-        response,
-        fallbackMessage:
-            'Gagal memuat daftar siswa (HTTP ${response.statusCode}).',
+      final response = await Supabase.instance.client.rpc(
+        'get_grade_students',
+        params: {'p_kelas_id': kelasId},
       );
-    } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi kesalahan koneksi: $e'};
+      return _asResult(response, 'Respons daftar siswa tidak valid.');
+    } on PostgrestException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Daftar siswa belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
+    } catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          error,
+          fallback: 'Daftar siswa belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
@@ -96,36 +86,77 @@ class NilaiService {
     Map<String, dynamic> dataNilai,
   ) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/add_nilai.php'),
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode(dataNilai),
-          )
-          .timeout(const Duration(seconds: 15));
-      return _decodeResponse(
-        response,
-        fallbackMessage: 'Gagal menyimpan nilai (HTTP ${response.statusCode}).',
+      final score = num.tryParse(dataNilai['skor_nilai']?.toString() ?? '');
+      final response = await Supabase.instance.client.rpc(
+        'save_legacy_grade',
+        params: {
+          'p_siswa_id': int.tryParse(dataNilai['siswa_id']?.toString() ?? ''),
+          'p_kelas_mapel_id': int.tryParse(
+            dataNilai['kelas_mapel_id']?.toString() ?? '',
+          ),
+          'p_semester': dataNilai['semester']?.toString(),
+          'p_jenis_nilai': dataNilai['jenis_nilai']?.toString(),
+          'p_skor_nilai': score,
+          'p_keterangan': dataNilai['keterangan']?.toString(),
+        },
       );
-    } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi kesalahan koneksi: $e'};
+      if (response is! Map || response['status'] != 'success') {
+        return {
+          'status': 'error',
+          'message': 'Respons penyimpanan nilai tidak valid.',
+        };
+      }
+      return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Nilai belum berhasil disimpan. Silakan coba lagi.',
+        ),
+      };
+    } catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          error,
+          fallback: 'Nilai belum berhasil disimpan. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
-  static Future<Map<String, dynamic>> ambilRaporSiswa(String idSiswa) async {
+  static Future<Map<String, dynamic>> ambilRaporSiswa() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/get_rapor_siswa.php?siswa_id=$idSiswa'),
+      final response = await Supabase.instance.client.rpc(
+        'get_my_student_report',
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      return _asResult(response, 'Respons rapor siswa tidak valid.');
+    } on PostgrestException catch (error) {
       return {
         'status': 'error',
-        'message': 'Gagal memuat lembar rapor dari server',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Rapor belum dapat dimuat. Silakan coba lagi.',
+        ),
       };
-    } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi kesalahan koneksi: $e'};
+    } catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          error,
+          fallback: 'Rapor belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
     }
+  }
+
+  static Map<String, dynamic> _asResult(dynamic response, String error) {
+    if (response is! Map ||
+        response['status'] != 'success' ||
+        response['data'] is! List) {
+      return {'status': 'error', 'message': error};
+    }
+    return Map<String, dynamic>.from(response);
   }
 }

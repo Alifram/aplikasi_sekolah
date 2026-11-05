@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
+import 'app_error_message.dart';
 
 class ApiService {
   static const String baseUrl = ApiConfig.baseUrl;
@@ -15,7 +16,10 @@ class ApiService {
     } catch (e) {
       return {
         "status": "error", 
-        "message": "Gagal terhubung ke server database: $e"
+        "message": AppErrorMessage.from(
+          e,
+          fallback: "Perubahan data akun belum berhasil. Silakan coba lagi.",
+        )
       };
     }
   }
@@ -29,31 +33,13 @@ class ApiService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {"status": "error", "message": "Gagal terhubung ke server hapus data: $e"};
-    }
-  }
-
-  static Future<Map<String, dynamic>> ambilStatistikAkademik(String angkatan) async {
-    try {
-      final uri = Uri.parse('$baseUrl/get_statistik.php').replace(
-        queryParameters: {'angkatan': angkatan},
-      );
-      final response = await http.get(uri);
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {"status": "error", "message": "Gagal terhubung ke database statistik: $e"};
-    }
-  }
-
-  static Future<Map<String, dynamic>> ambilRaporSiswa(String idSiswa) async {
-    try {
-      final uri = Uri.parse('$baseUrl/get_rapor_siswa.php').replace(
-        queryParameters: {'siswa_id': idSiswa},
-      );
-      final response = await http.get(uri);
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {"status": "error", "message": "Gagal terhubung ke database rapor: $e"};
+      return {
+        "status": "error",
+        "message": AppErrorMessage.from(
+          e,
+          fallback: "Akun belum berhasil dihapus. Silakan coba lagi.",
+        ),
+      };
     }
   }
 
@@ -65,7 +51,13 @@ class ApiService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {"status": "error", "message": "Gagal terhubung ke database ringkasan: $e"};
+      return {
+        "status": "error",
+        "message": AppErrorMessage.from(
+          e,
+          fallback: "Ringkasan belum dapat dimuat. Silakan coba lagi.",
+        ),
+      };
     }
   }
 
