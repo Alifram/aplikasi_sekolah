@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app_error_message.dart';
 
 class AuthService {
   static const String baseUrl = ApiConfig.baseUrl;
@@ -77,11 +78,20 @@ class AuthService {
       await _saveProfileLocally(profile);
       return {'status': 'success', 'user': profile};
     } on AuthException catch (error) {
-      return {'status': 'error', 'message': error.message};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          error,
+          fallback: 'Login belum berhasil. Periksa data akun dan coba lagi.',
+        ),
+      };
     } on PostgrestException catch (error) {
       return {
         'status': 'error',
-        'message': 'Gagal memuat profil akun: ${error.message}',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Profil akun belum dapat dimuat. Silakan coba lagi.',
+        ),
       };
     } on FunctionException catch (error) {
       final details = error.details;
@@ -93,7 +103,13 @@ class AuthService {
             'Login dengan nomor induk gagal. Periksa deployment Edge Function.',
       };
     } catch (e) {
-      return {'status': 'error', 'message': 'Gagal login ke Supabase: $e'};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Login belum berhasil. Periksa koneksi lalu coba lagi.',
+        ),
+      };
     }
   }
 
@@ -188,7 +204,13 @@ class AuthService {
             'Pendaftaran gagal. Periksa koneksi dan fungsi Supabase.',
       };
     } catch (e) {
-      return {'status': 'error', 'message': 'Gagal mendaftarkan akun: $e'};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Pendaftaran akun belum berhasil. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
@@ -203,7 +225,13 @@ class AuthService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {"status": "error", "message": "Kesalahan koneksi sistem: $e"};
+      return {
+        "status": "error",
+        "message": AppErrorMessage.from(
+          e,
+          fallback: "Perubahan kata sandi belum berhasil. Silakan coba lagi.",
+        ),
+      };
     }
   }
 

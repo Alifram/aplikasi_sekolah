@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 
 class RegisterFormScreen extends StatefulWidget {
   final String pembuatRole;
@@ -84,10 +85,22 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
       });
     } on PostgrestException catch (error) {
       if (mounted) {
-        setState(() => _kelasError = 'Gagal memuat kelas: ${error.message}');
+        setState(
+          () => _kelasError = AppErrorMessage.fromPostgrest(
+            error,
+            fallback: 'Daftar kelas belum dapat dimuat. Silakan coba lagi.',
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) setState(() => _kelasError = 'Gagal memuat kelas: $e');
+      if (mounted) {
+        setState(
+          () => _kelasError = AppErrorMessage.from(
+            e,
+            fallback: 'Daftar kelas belum dapat dimuat. Silakan coba lagi.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoadingKelas = false);
     }
