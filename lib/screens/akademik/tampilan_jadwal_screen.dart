@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 
 class TampilanJadwalScreen extends StatefulWidget {
   final String roleUser; // 'guru' atau 'siswa'
@@ -60,14 +61,20 @@ class _TampilanJadwalScreenState extends State<TampilanJadwalScreen> {
     } on PostgrestException catch (error) {
       if (mounted && requestId == _scheduleRequestId) {
         setState(() {
-          _jadwalError = error.message;
+          _jadwalError = AppErrorMessage.fromPostgrest(
+            error,
+            fallback: 'Jadwal belum dapat dimuat. Silakan coba lagi.',
+          );
           _jadwalHariIni = [];
         });
       }
     } catch (e) {
       if (mounted && requestId == _scheduleRequestId) {
         setState(() {
-          _jadwalError = 'Gagal memuat jadwal: $e';
+          _jadwalError = AppErrorMessage.from(
+            e,
+            fallback: 'Jadwal belum dapat dimuat. Silakan coba lagi.',
+          );
           _jadwalHariIni = [];
         });
       }

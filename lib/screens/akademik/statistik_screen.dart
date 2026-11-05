@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
-import 'package:aplikasi_sekolah/core/services/api_service.dart';
+import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
 import '../informasi/pantau_data_screen.dart';
 
 class StatistikScreen extends StatefulWidget {
@@ -34,7 +34,9 @@ class _StatistikScreenState extends State<StatistikScreen> {
   Future<void> _panggilDataStatistik() async {
     setState(() => _isLoading = true);
     try {
-      final res = await ApiService.ambilStatistikAkademik(_angkatanTerpilih);
+      final res = await DashboardService.ambilStatistikBerdasarkanAngkatan(
+        _angkatanTerpilih,
+      );
       if (mounted && res['status'] == 'success') {
         setState(() {
           _dataStatistik = res['data'];

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
+import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'manajemen_penugasan_mapel_screen.dart';
 
@@ -88,7 +89,16 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memuat kelas: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                e,
+                fallback: 'Daftar kelas belum dapat dimuat. Silakan coba lagi.',
+              ),
+            ),
+          ),
+        );
       }
     }
   }
@@ -118,7 +128,15 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat penugasan mapel: $e')),
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                e,
+                fallback:
+                    'Penugasan mata pelajaran belum dapat dimuat. Silakan coba lagi.',
+              ),
+            ),
+          ),
         );
       }
     } finally {
@@ -154,7 +172,10 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
     } catch (e) {
       if (mounted && requestId == _jadwalLoadRequest) {
         setState(() {
-          _jadwalError = 'Gagal memuat jadwal: $e';
+          _jadwalError = AppErrorMessage.from(
+            e,
+            fallback: 'Jadwal belum dapat dimuat. Silakan coba lagi.',
+          );
           _listJadwalAktif = [];
         });
       }
@@ -307,7 +328,12 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal menghapus jadwal: $e'),
+          content: Text(
+            AppErrorMessage.from(
+              e,
+              fallback: 'Jadwal belum berhasil dihapus. Silakan coba lagi.',
+            ),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -382,7 +408,12 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Terjadi kesalahan koneksi server: $e'),
+          content: Text(
+            AppErrorMessage.from(
+              e,
+              fallback: 'Jadwal belum berhasil disimpan. Silakan coba lagi.',
+            ),
+          ),
           backgroundColor: Colors.red,
         ),
       );

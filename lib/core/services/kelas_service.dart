@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api_config.dart';
+import 'app_error_message.dart';
 
 class KelasService {
   static const String baseUrl = ApiConfig.baseUrl;
@@ -20,7 +21,13 @@ class KelasService {
         'message': 'Gagal memuat data kelas dari server',
       };
     } catch (e) {
-      return {'status': 'error', 'message': 'Terjadi kesalahan koneksi: $e'};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Data teman sekelas belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
     }
   }
 
@@ -33,11 +40,20 @@ class KelasService {
           .order('nama');
       return {'status': 'success', 'data': response};
     } on PostgrestException catch (error) {
-      return {'status': 'error', 'message': error.message};
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Daftar kelas belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
     } catch (e) {
       return {
         'status': 'error',
-        'message': 'Gagal memuat kelas dari Supabase: $e',
+        'message': AppErrorMessage.from(
+          e,
+          fallback: 'Daftar kelas belum dapat dimuat. Silakan coba lagi.',
+        ),
       };
     }
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 
 class ManajemenPenugasanMapelScreen extends StatefulWidget {
   const ManajemenPenugasanMapelScreen({super.key});
@@ -70,11 +71,22 @@ class _ManajemenPenugasanMapelScreenState
     } on PostgrestException catch (error) {
       if (mounted) {
         setState(
-          () => _error = 'Gagal memuat data penugasan: ${error.message}',
+          () => _error = AppErrorMessage.fromPostgrest(
+            error,
+            fallback:
+                'Data penugasan belum dapat dimuat. Silakan coba lagi.',
+          ),
         );
       }
     } catch (e) {
-      if (mounted) setState(() => _error = 'Gagal memuat data penugasan: $e');
+      if (mounted) {
+        setState(
+          () => _error = AppErrorMessage.from(
+            e,
+            fallback: 'Data penugasan belum dapat dimuat. Silakan coba lagi.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -115,11 +127,23 @@ class _ManajemenPenugasanMapelScreenState
       }
     } on PostgrestException catch (error) {
       if (mounted && requestId == _teacherLoadRequest) {
-        _showMessage('Gagal memuat guru kelas: ${error.message}', error: true);
+        _showMessage(
+          AppErrorMessage.fromPostgrest(
+            error,
+            fallback: 'Daftar guru belum dapat dimuat. Silakan coba lagi.',
+          ),
+          error: true,
+        );
       }
     } catch (e) {
       if (mounted && requestId == _teacherLoadRequest) {
-        _showMessage('Gagal memuat guru kelas: $e', error: true);
+        _showMessage(
+          AppErrorMessage.from(
+            e,
+            fallback: 'Daftar guru belum dapat dimuat. Silakan coba lagi.',
+          ),
+          error: true,
+        );
       }
     } finally {
       if (mounted && requestId == _teacherLoadRequest) {
@@ -160,12 +184,26 @@ class _ManajemenPenugasanMapelScreenState
       await _loadData();
     } on PostgrestException catch (error) {
       if (!mounted) return;
-      final message = error.code == '23505'
-          ? 'Penugasan kelas dan mata pelajaran untuk tahun ajaran tersebut sudah ada.'
-          : error.message;
-      _showMessage('Gagal menyimpan penugasan: $message', error: true);
+      _showMessage(
+        error.code == '23505'
+            ? 'Penugasan kelas dan mata pelajaran untuk tahun ajaran tersebut sudah ada.'
+            : AppErrorMessage.fromPostgrest(
+                error,
+                fallback:
+                    'Penugasan belum berhasil disimpan. Silakan coba lagi.',
+              ),
+        error: true,
+      );
     } catch (e) {
-      if (mounted) _showMessage('Gagal menyimpan penugasan: $e', error: true);
+      if (mounted) {
+        _showMessage(
+          AppErrorMessage.from(
+            e,
+            fallback: 'Penugasan belum berhasil disimpan. Silakan coba lagi.',
+          ),
+          error: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 
 class ManajemenMataPelajaranScreen extends StatefulWidget {
   final String userId;
@@ -56,12 +57,22 @@ class _ManajemenMataPelajaranScreenState
     } on PostgrestException catch (error) {
       if (mounted) {
         setState(
-          () => _error = 'Gagal memuat mata pelajaran: ${error.message}',
+          () => _error = AppErrorMessage.fromPostgrest(
+            error,
+            fallback:
+                'Daftar mata pelajaran belum dapat dimuat. Silakan coba lagi.',
+          ),
         );
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _error = 'Gagal memuat mata pelajaran: $error');
+        setState(
+          () => _error = AppErrorMessage.from(
+            error,
+            fallback:
+                'Daftar mata pelajaran belum dapat dimuat. Silakan coba lagi.',
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -84,13 +95,26 @@ class _ManajemenMataPelajaranScreenState
       await _muatMataPelajaran();
     } on PostgrestException catch (error) {
       if (!mounted) return;
-      final message = error.code == '23505'
-          ? 'Kode atau nama mata pelajaran sudah digunakan.'
-          : error.message;
-      _tampilkanPesan('Gagal menyimpan mata pelajaran: $message', error: true);
+      _tampilkanPesan(
+        error.code == '23505'
+            ? 'Kode atau nama mata pelajaran sudah digunakan.'
+            : AppErrorMessage.fromPostgrest(
+                error,
+                fallback:
+                    'Mata pelajaran belum berhasil disimpan. Silakan coba lagi.',
+              ),
+        error: true,
+      );
     } catch (error) {
       if (mounted) {
-        _tampilkanPesan('Gagal menyimpan mata pelajaran: $error', error: true);
+        _tampilkanPesan(
+          AppErrorMessage.from(
+            error,
+            fallback:
+                'Mata pelajaran belum berhasil disimpan. Silakan coba lagi.',
+          ),
+          error: true,
+        );
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
