@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/informasi_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
-import 'package:aplikasi_sekolah/core/services/api_config.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
 
 class EventScreen extends StatefulWidget {
@@ -128,7 +126,7 @@ class _EventScreenState extends State<EventScreen> {
     }
   }
 
-  // LOGIKA BARU: Mengirim data form dan base64 melalui InformasiService
+  // Upload the image separately so event metadata stays within the RPC payload.
   Future<void> _tambahAcaraBaru() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_targetSemuaKelas && _selectedTargetKelasIds.isEmpty) {
@@ -143,10 +141,51 @@ class _EventScreenState extends State<EventScreen> {
 
     setState(() => _isLoading = true);
 
-    String? gambarBase64;
+    String? gambarPath;
     if (_imageFile != null) {
+      final fileName = _imageFile!.name.toLowerCase();
+      final mimeType =
+          _imageFile!.mimeType ??
+          (fileName.endsWith('.png')
+              ? 'image/png'
+              : fileName.endsWith('.webp')
+                  ? 'image/webp'
+                  : 'image/jpeg');
+      final extension = switch (mimeType) {
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'image/jpeg' => 'jpg',
+        _ => null,
+      };
+      if (extension == null) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Format gambar harus JPEG, PNG, atau WebP.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       final bytes = await _imageFile!.readAsBytes();
-      gambarBase64 = base64Encode(bytes);
+      final upload = await InformasiService.unggahGambarAcara(
+        bytes: bytes,
+        extension: extension,
+        contentType: mimeType,
+      );
+      if (upload['status'] != 'success') {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(upload['message']?.toString() ?? 'Gagal mengunggah gambar.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      gambarPath = upload['path']?.toString();
     }
 
     final dataInput = {
@@ -155,8 +194,7 @@ class _EventScreenState extends State<EventScreen> {
       "semua_kelas": _targetSemuaKelas,
       "kelas_ids": _selectedTargetKelasIds.toList(),
       "tanggal_acara": DateTime.now().toString().substring(0, 10),
-      "dibuat_oleh": widget.namaUser,
-      "gambar_base64": gambarBase64,
+      "gambar_path": gambarPath,
     };
 
     final res = await InformasiService.tambahAcara(dataInput);
@@ -171,10 +209,20 @@ class _EventScreenState extends State<EventScreen> {
       });
       await _panggilDataAcara();
     } else {
+      String? cleanupError;
+      if (gambarPath != null) {
+        cleanupError = await InformasiService.hapusGambarAcara(gambarPath);
+      }
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res['message'] ?? 'Gagal menambahkan acara'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text([
+            res['message']?.toString() ?? 'Gagal menambahkan acara',
+            if (cleanupError != null) 'Gagal membersihkan gambar: $cleanupError',
+          ].join(' ')),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -183,13 +231,15 @@ class _EventScreenState extends State<EventScreen> {
   Future<void> _hapusPostinganAcara(String eventId) async {
     setState(() => _isLoading = true);
 
-    final dataHapus = {
-      "event_id": eventId,
-      "role_user": widget.roleUser,
-      "nama_user": widget.namaUser,
-    };
-
-    final res = await InformasiService.hapusAcara(dataHapus);
+    final event = _listEvents.cast<Map>().firstWhere(
+          (item) => item['id'].toString() == eventId,
+          orElse: () => const {},
+        );
+    final imagePath = event['gambar_url']?.toString();
+    final res = await InformasiService.hapusAcara(
+      eventId: eventId,
+      imagePath: imagePath,
+    );
 
     if (!mounted) return;
 
@@ -599,10 +649,9 @@ class _EventScreenState extends State<EventScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Menarik gambar berita secara otomatis dari direktori server backend
-                          if (item['gambar_url'] != null)
+                          if (item['gambar_signed_url'] != null)
                             Image.network(
-                              '${ApiConfig.baseUrl}/view_image.php?file=${Uri.encodeQueryComponent(item['gambar_url'].toString())}',
+                              item['gambar_signed_url'].toString(),
                               height: 220,
                               width: double.infinity,
                               fit: BoxFit.cover,

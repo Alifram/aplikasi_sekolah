@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
-import 'package:aplikasi_sekolah/core/services/api_config.dart';
+import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../akademik/manajemen_jadwal_screen.dart';
@@ -288,7 +288,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           _isEventsLoading = false;
           _isAdminSummaryLoading = false;
           if (widget.role == 'admin') {
-            _adminSummaryError = 'Gagal memuat ringkasan dashboard: $e';
+            _adminSummaryError = AppErrorMessage.from(
+              e,
+              fallback:
+                  'Ringkasan beranda belum dapat dimuat. Silakan coba lagi.',
+            );
           }
         });
       }
@@ -419,7 +423,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       context,
       MaterialPageRoute(
         builder: (context) => PresensiScreen(
-          userId: userId,
           role: widget.role,
           kelasIdUser: widget.extraData['kelas_id']?.toString(),
           statusTemaGelap: widget.statusTemaGelap,
@@ -1042,17 +1045,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   decoration: BoxDecoration(
                                     color: Colors.grey.shade300,
                                     image:
-                                        ev['gambar_url'] != null &&
-                                            ev['gambar_url']
+                                        ev['gambar_signed_url'] != null &&
+                                            ev['gambar_signed_url']
                                                 .toString()
                                                 .isNotEmpty
                                         ? DecorationImage(
                                             image: NetworkImage(
-                                              ev['gambar_url']
-                                                      .toString()
-                                                      .startsWith('http')
-                                                  ? ev['gambar_url'].toString()
-                                                  : '${ApiConfig.baseUrl}/view_image.php?file=${Uri.encodeQueryComponent(ev['gambar_url'].toString())}',
+                                              ev['gambar_signed_url']
+                                                  .toString(),
                                             ),
                                             fit: BoxFit.cover,
                                           )
