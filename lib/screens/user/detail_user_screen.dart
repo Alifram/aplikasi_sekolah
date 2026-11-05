@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/admin_service.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
-import '../../core/services/api_service.dart';
 
 class DetailUserScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -45,8 +44,9 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
   Future<void> _eksekusiHapusAkunPengguna() async {
     setState(() => _isLoading = true);
     try {
-      // Mengirimkan paket data ID target ke server MySQL
-      final res = await ApiService.hapusAkunUser(widget.userData['id'].toString());
+      final res = await AdminService.hapusAkunUser(
+        widget.userData['id'].toString(),
+      );
       
       if (!mounted) return;
       
@@ -142,6 +142,8 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
     final TextEditingController _passBaruController = TextEditingController();
     
     int? kelasTerpilihId = _currentKelasId;
+    String tahunAngkatanTerpilih =
+        (user['tahun_angkatan'] ?? DateTime.now().year).toString();
     final bool isDark = widget.statusTemaGelap;
     
     // Palet Warna Kontras Tinggi Adaptif (WhatsApp Dark Mode style)
@@ -157,11 +159,13 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
         "id_user": user['id'].toString(),
         "nama_lengkap": _namaController.text.trim(),
         "email": _emailController.text.trim(),
+        "role": user['role'],
         "kelas_id": kelasTerpilihId,
+        "tahun_angkatan": int.tryParse(tahunAngkatanTerpilih),
         "password_baru": _passBaruController.text.trim(),
       };
 
-      final res = await ApiService.perbaruiDataPengguna(paketUpdateGlobal);
+      final res = await AdminService.perbaruiDataPengguna(paketUpdateGlobal);
       
       if (!mounted) return;
       Navigator.pop(context); // Tutup dialog utama edit informasi akun
@@ -177,6 +181,9 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
           user['email'] = _emailController.text.trim();
           user['kelas_id'] = kelasTerpilihId;
           user['kelas_nama'] = _currentKelas;
+          if (user['role'] == 'siswa') {
+            user['tahun_angkatan'] = paketUpdateGlobal['tahun_angkatan'];
+          }
         });
       }
 
@@ -262,7 +269,9 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                       ),
                       const SizedBox(height: 18),
                       // 3. DROPDOWN PINDAH TINGKAT KELAS TERINTEGRASI
-                      if (user['role'] == 'guru' || user['role'] == 'siswa')
+                      if (user['role'] == 'siswa' ||
+                          (user['role'] == 'guru' &&
+                              user['jenis_guru'] == 'guru_kelas'))
                       DropdownButtonFormField<int>(
                         value: kelasTerpilihId,
                         dropdownColor: warnaLatarDialog,
@@ -288,7 +297,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                       if (user['role'] == 'siswa') ...[
                         const SizedBox(height: 18),
                         DropdownButtonFormField<String>(
-                          value: (user['tahun_angkatan'] ?? '2026').toString(),
+                          value: tahunAngkatanTerpilih,
                           dropdownColor: warnaLatarDialog,
                           style: TextStyle(color: warnaTeksUtama, fontWeight: FontWeight.bold),
                           decoration: InputDecoration(
@@ -300,10 +309,16 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: warnaBorderActive, width: 2)),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          items: ['2024', '2025', '2026', '2027'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                          items: {
+                            '2024',
+                            '2025',
+                            '2026',
+                            '2027',
+                            tahunAngkatanTerpilih,
+                          }.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                           onChanged: (v) {
                             setModalState(() {
-                              user['tahun_angkatan'] = int.tryParse(v!);
+                              tahunAngkatanTerpilih = v!;
                             });
                           },
                         ),
@@ -407,8 +422,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                         },
                       );
                     } else {
-                      // Jika kolom password kosong (hanya edit nama/email biasa), langsung kirim ke server XAMPP
-                      _prosesKirimKeDatabase();
+                    _prosesKirimKeDatabase();
                     }
                   },
                   child: const Text('SIMPAN PERUBAHAN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -461,6 +475,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
               if (res['status'] == 'success') {
                 setState(() {
                   _isDeletedStatus = targetStatus; // Mengubah state UI secara real-time
+                  widget.userData['is_deleted'] = targetStatus;
                   _isLoading = false;
                 });
               } else {

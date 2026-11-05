@@ -1,26 +1,35 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'api_config.dart';
+
 import 'app_error_message.dart';
 
 class AdminService {
-  static const String baseUrl = ApiConfig.baseUrl;
+  static final SupabaseClient _supabase = Supabase.instance.client;
 
-  // Fungsi khusus untuk menarik seluruh data pengguna sekolah (Admin, Guru, Siswa)
   static Future<Map<String, dynamic>> ambilSemuaPengguna() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/get_users.php'));
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      final response = await _supabase.rpc('get_admin_users');
+      if (response is! Map ||
+          response['status'] != 'success' ||
+          response['data'] is! List) {
+        return {
+          'status': 'error',
+          'message': 'Data pengguna belum dapat dimuat. Silakan coba lagi.',
+        };
       }
-      return {'status': 'error', 'message': 'Gagal memuat database pengguna.'};
-    } catch (e) {
+      return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Data pengguna belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
+    } catch (error) {
       return {
         'status': 'error',
         'message': AppErrorMessage.from(
-          e,
+          error,
           fallback: 'Data pengguna belum dapat dimuat. Silakan coba lagi.',
         ),
       };
@@ -32,7 +41,7 @@ class AdminService {
     String role,
   ) async {
     try {
-      final response = await Supabase.instance.client.rpc(
+      final response = await _supabase.rpc(
         'get_admin_grade_history',
         params: {'p_target_user_id': int.tryParse(userId)},
       );
@@ -54,71 +63,126 @@ class AdminService {
           fallback: 'Riwayat nilai belum dapat dimuat. Silakan coba lagi.',
         ),
       };
-    } catch (e) {
+    } catch (error) {
       return {
         'status': 'error',
         'message': AppErrorMessage.from(
-          e,
+          error,
           fallback: 'Riwayat nilai belum dapat dimuat. Silakan coba lagi.',
         ),
       };
     }
   }
 
-  static Future<Map<String, dynamic>> prosesPindahKelas(
-    String adminId,
-    String userId,
-    int kelasId,
+  static Future<Map<String, dynamic>> perbaruiDataPengguna(
+    Map<String, dynamic> dataInput,
+  ) {
+    final payload = <String, dynamic>{
+      'action': 'update',
+      'user_id': int.tryParse(dataInput['id_user']?.toString() ?? ''),
+      'nama_lengkap': dataInput['nama_lengkap'],
+      'email': dataInput['email'],
+      'kelas_id': dataInput['kelas_id'],
+      'password_baru': dataInput['password_baru'],
+    };
+    if (dataInput['role'] == 'siswa') {
+      payload['tahun_angkatan'] = dataInput['tahun_angkatan'];
+    }
+    return _kelolaAkun(payload);
+  }
+
+  static Future<Map<String, dynamic>> hapusAkunUser(String idUser) =>
+      _kelolaAkun({
+        'action': 'delete',
+        'user_id': int.tryParse(idUser),
+      });
+
+  static Future<Map<String, dynamic>> ubahStatusAksesAkun(
+    String idUser,
+    int statusBaru,
+  ) => _kelolaAkun({
+    'action': 'set_status',
+    'user_id': int.tryParse(idUser),
+    'status': statusBaru,
+  });
+
+  static Future<Map<String, dynamic>> _kelolaAkun(
+    Map<String, dynamic> body,
   ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/pindah_kelas.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "user_id": userId,
-          "admin_id": adminId,
-          "kelas_id_baru": kelasId,
-        }),
+      final response = await _supabase.functions.invoke(
+        'admin-manage-user',
+        body: body,
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      final data = response.data;
+      if (data is Map) {
+        final result = Map<String, dynamic>.from(data);
+        if (response.status >= 200 && response.status < 300) {
+          return {...result, 'status': 'success'};
+        }
+        return {
+          ...result,
+          'status': 'error',
+          'message': result['message']?.toString() ??
+              'Perubahan akun belum berhasil. Silakan coba lagi.',
+        };
       }
-      return {'status': 'error', 'message': 'Gagal memperbarui data kelas.'};
-    } catch (e) {
+      return {
+        'status': 'error',
+        'message': 'Respons layanan akun tidak valid. Silakan coba lagi.',
+      };
+    } on FunctionException catch (error) {
+      final details = error.details;
+      final message = details is Map
+          ? details['message']?.toString()
+          : null;
+      return {
+        'status': 'error',
+        'message': message ??
+            'Layanan akun belum dapat dihubungi. Silakan coba lagi.',
+      };
+    } catch (error) {
       return {
         'status': 'error',
         'message': AppErrorMessage.from(
-          e,
-          fallback: 'Perubahan kelas belum berhasil. Silakan coba lagi.',
+          error,
+          fallback: 'Layanan akun belum dapat dihubungi. Silakan coba lagi.',
         ),
       };
     }
   }
 
-  static Future<Map<String, dynamic>> ubahStatusAksesAkun(
-    String idUser,
-    int statusBaru,
+  static Future<Map<String, dynamic>> prosesPindahKelas(
+    String userId,
+    int kelasId,
   ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/ubah_status_akses.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"user_id": idUser, "status_baru": statusBaru}),
+      final response = await _supabase.rpc(
+        'admin_move_user_class',
+        params: {
+          'p_user_id': int.tryParse(userId),
+          'p_kelas_id': kelasId,
+        },
       );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      if (response is Map) return Map<String, dynamic>.from(response);
       return {
         'status': 'error',
-        'message': 'Gagal merespons server (${response.statusCode})',
+        'message': 'Respons pemindahan kelas tidak valid.',
       };
-    } catch (e) {
+    } on PostgrestException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Pemindahan kelas belum berhasil. Silakan coba lagi.',
+        ),
+      };
+    } catch (error) {
       return {
         'status': 'error',
         'message': AppErrorMessage.from(
-          e,
-          fallback: 'Status akun belum berhasil diperbarui. Silakan coba lagi.',
+          error,
+          fallback: 'Pemindahan kelas belum berhasil. Silakan coba lagi.',
         ),
       };
     }
@@ -126,46 +190,26 @@ class AdminService {
 
   static Future<Map<String, dynamic>> prosesKenaikanKelasMassal() async {
     try {
-      final preferences = await SharedPreferences.getInstance();
-      final userId = preferences.getString('user_id');
-      if (userId == null || userId.isEmpty) {
-        return {'status': 'error', 'message': 'Sesi admin tidak ditemukan.'};
-      }
-      final response = await http.post(
-        Uri.parse('$baseUrl/naik_kelas_massal.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({'user_id': userId}),
-      );
-
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          return decoded;
-        }
-        return {
-          ...decoded,
-          'status': 'error',
-          'message':
-              decoded['message'] ??
-              'Gagal memproses kenaikan kelas (${response.statusCode}).',
-        };
-      }
+      final response = await _supabase.rpc('admin_promote_students');
+      if (response is Map) return Map<String, dynamic>.from(response);
       return {
         'status': 'error',
-        'message':
-            'Respons kenaikan kelas tidak valid (${response.statusCode}).',
+        'message': 'Respons kenaikan kelas tidak valid.',
       };
-    } on FormatException {
+    } on PostgrestException catch (error) {
       return {
         'status': 'error',
-        'message': 'Server mengirim respons kenaikan kelas yang tidak valid.',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Kenaikan kelas belum berhasil. Silakan coba lagi.',
+        ),
       };
-    } catch (e) {
+    } catch (error) {
       return {
         'status': 'error',
         'message': AppErrorMessage.from(
-          e,
-          fallback: 'Kenaikan kelas belum berhasil diproses. Silakan coba lagi.',
+          error,
+          fallback: 'Kenaikan kelas belum berhasil. Silakan coba lagi.',
         ),
       };
     }

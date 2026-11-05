@@ -1,13 +1,8 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'api_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_error_message.dart';
 
 class AuthService {
-  static const String baseUrl = ApiConfig.baseUrl;
-
   static Future<Map<String, dynamic>> login(
     String identifier,
     String password,
@@ -218,12 +213,44 @@ class AuthService {
     Map<String, dynamic> dataInput,
   ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/change_password.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(dataInput),
+      final client = Supabase.instance.client;
+      final currentUser = client.auth.currentUser;
+      final email = currentUser?.email;
+      final oldPassword = dataInput['password_lama']?.toString() ?? '';
+      final newPassword = dataInput['password_baru']?.toString() ?? '';
+
+      if (currentUser == null || email == null) {
+        return {
+          'status': 'error',
+          'message': 'Sesi login tidak ditemukan. Silakan masuk kembali.',
+        };
+      }
+      if (oldPassword.isEmpty || newPassword.length < 6) {
+        return {
+          'status': 'error',
+          'message': 'Periksa kata sandi lama dan ketentuan kata sandi baru.',
+        };
+      }
+
+      await client.auth.signInWithPassword(
+        email: email,
+        password: oldPassword,
       );
-      return jsonDecode(response.body);
+      await client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      return {
+        'status': 'success',
+        'message': 'Kata sandi berhasil diperbarui.',
+      };
+    } on AuthException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          error,
+          fallback: 'Kata sandi belum berhasil diperbarui. Silakan coba lagi.',
+        ),
+      };
     } catch (e) {
       return {
         "status": "error",

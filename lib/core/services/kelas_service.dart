@@ -1,30 +1,42 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'api_config.dart';
 import 'app_error_message.dart';
 
 class KelasService {
-  static const String baseUrl = ApiConfig.baseUrl;
-
-  // Fungsi khusus untuk mengambil daftar teman sekelas dari backend PHP
   static Future<Map<String, dynamic>> ambilTemanSekelas(int kelasId) async {
+    if (kelasId <= 0) {
+      return {
+        'status': 'error',
+        'message': 'ID kelas tidak valid.',
+      };
+    }
+
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/get_teman_sekelas.php?kelas_id=$kelasId'),
+      final response = await Supabase.instance.client.rpc(
+        'get_classmates',
+        params: {'p_kelas_id': kelasId},
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      if (response is Map &&
+          response['status'] == 'success' &&
+          response['data'] is List) {
+        return Map<String, dynamic>.from(response);
       }
       return {
         'status': 'error',
-        'message': 'Gagal memuat data kelas dari server',
+        'message': 'Respons daftar teman sekelas tidak valid.',
       };
-    } catch (e) {
+    } on PostgrestException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Data teman sekelas belum dapat dimuat. Silakan coba lagi.',
+        ),
+      };
+    } catch (error) {
       return {
         'status': 'error',
         'message': AppErrorMessage.from(
-          e,
+          error,
           fallback: 'Data teman sekelas belum dapat dimuat. Silakan coba lagi.',
         ),
       };

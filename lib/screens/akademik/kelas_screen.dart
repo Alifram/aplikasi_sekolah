@@ -29,7 +29,11 @@ class _KelasScreenState extends State<KelasScreen> {
         if (res['status'] == 'success' && res['data'] is List) {
           _listSiswaGlobal = (res['data'] as List)
               .whereType<Map>()
-              .where((user) => user['role'] == 'siswa')
+              .where(
+                (user) =>
+                    user['role'] == 'siswa' &&
+                    int.tryParse(user['is_deleted']?.toString() ?? '0') == 0,
+              )
               .toList();
         } else {
           _error = res['message']?.toString() ?? 'Gagal memuat data siswa.';
