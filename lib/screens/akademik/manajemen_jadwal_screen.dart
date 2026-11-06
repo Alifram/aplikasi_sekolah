@@ -551,6 +551,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<int>(
+                              isExpanded: true,
                               value: _kelasIdTerpilih,
                               dropdownColor: warnaKotakKartu,
                               style: TextStyle(color: warnaTeksUtama),
@@ -604,6 +605,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: DropdownButtonFormField<String>(
+                              isExpanded: true,
                               value: _hariTerpilih,
                               dropdownColor: warnaKotakKartu,
                               style: TextStyle(color: warnaTeksUtama),
@@ -659,6 +661,8 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                               ),
                               label: Text(
                                 'Mulai: ${_jamMulai.format(context)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(color: warnaTeksSub),
                               ),
                               onPressed: () => _pilihWaktuJamMulai(context),
@@ -683,6 +687,8 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                               ),
                               label: Text(
                                 'Selesai: ${_jamSelesai.format(context)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(color: warnaTeksSub),
                               ),
                               onPressed: () => _pilihWaktuJamSelesai(context),
@@ -696,6 +702,7 @@ class _ManajemenJadwalScreenState extends State<ManajemenJadwalScreen> {
                         const LinearProgressIndicator()
                       else
                         DropdownButtonFormField<int>(
+                          isExpanded: true,
                           value: _kelasMapelTerpilihId,
                           dropdownColor: warnaKotakKartu,
                           style: TextStyle(color: warnaTeksUtama),

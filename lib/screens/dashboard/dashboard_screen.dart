@@ -432,9 +432,12 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _tampilkanDialogGantiPassword() {
-    final TextEditingController _passLamaController = TextEditingController();
-    final TextEditingController _passBaruController = TextEditingController();
-    final _formKeyPassword = GlobalKey<FormState>();
+    final passwordLamaController = TextEditingController();
+    final passwordBaruController = TextEditingController();
+    final konfirmasiPasswordController = TextEditingController();
+    final formKeyPassword = GlobalKey<FormState>();
+    var sedangMemperbarui = false;
+    String? pesanError;
 
     final bool isDark = widget.statusTemaGelap;
     final Color warnaLatarDialog = isDark
@@ -442,108 +445,178 @@ class _DashboardScreenState extends State<DashboardScreen>
         : Colors.white;
     final Color warnaTeksUtama = isDark ? Colors.white : Colors.black87;
 
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: warnaLatarDialog,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Ganti Password Akun',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: warnaTeksUtama,
-              fontSize: 18,
-            ),
-          ),
-          content: Form(
-            key: _formKeyPassword,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _passLamaController,
-                  obscureText: true,
-                  style: TextStyle(color: warnaTeksUtama),
-                  decoration: InputDecoration(
-                    labelText: 'Password Saat Ini',
-                    labelStyle: TextStyle(
-                      color: isDark ? Colors.white70 : Colors.grey,
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      v!.isEmpty ? 'Password lama wajib diisi' : null,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return PopScope(
+            canPop: !sedangMemperbarui,
+            child: AlertDialog(
+              backgroundColor: warnaLatarDialog,
+              scrollable: true,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                'Ganti Password Akun',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: warnaTeksUtama,
+                  fontSize: 18,
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passBaruController,
-                  obscureText: true,
-                  style: TextStyle(color: warnaTeksUtama),
-                  decoration: InputDecoration(
-                    labelText: 'Password Baru Anda',
-                    labelStyle: TextStyle(
+              ),
+              content: SizedBox(
+                width: 360,
+                child: Form(
+                  key: formKeyPassword,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: passwordLamaController,
+                        obscureText: true,
+                        autofillHints: const [AutofillHints.password],
+                        style: TextStyle(color: warnaTeksUtama),
+                        decoration: const InputDecoration(
+                          labelText: 'Password Saat Ini',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) => value == null || value.isEmpty
+                            ? 'Password lama wajib diisi'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: passwordBaruController,
+                        obscureText: true,
+                        style: TextStyle(color: warnaTeksUtama),
+                        decoration: const InputDecoration(
+                          labelText: 'Password Baru',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Password baru wajib diisi';
+                          }
+                          if (value.length < 6) {
+                            return 'Minimal terdiri dari 6 karakter';
+                          }
+                          if (value == passwordLamaController.text) {
+                            return 'Password baru harus berbeda';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: konfirmasiPasswordController,
+                        obscureText: true,
+                        style: TextStyle(color: warnaTeksUtama),
+                        decoration: const InputDecoration(
+                          labelText: 'Ulangi Password Baru',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) =>
+                            value != passwordBaruController.text
+                            ? 'Konfirmasi password belum sama'
+                            : null,
+                      ),
+                      if (pesanError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          pesanError!,
+                          style: TextStyle(
+                            color: Colors.red.shade700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sedangMemperbarui
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: Text(
+                    'BATAL',
+                    style: TextStyle(
                       color: isDark ? Colors.white70 : Colors.grey,
                     ),
-                    border: const OutlineInputBorder(),
                   ),
-                  validator: (v) {
-                    if (v!.isEmpty) return 'Password baru wajib diisi';
-                    if (v.length < 6) return 'Minimal terdiri dari 6 karakter';
-                    return null;
-                  },
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
+                  onPressed: sedangMemperbarui
+                      ? null
+                      : () async {
+                          if (!formKeyPassword.currentState!.validate()) {
+                            return;
+                          }
+
+                          setDialogState(() {
+                            sedangMemperbarui = true;
+                            pesanError = null;
+                          });
+                          final result = await AuthService.gantiPassword(
+                            passwordLama: passwordLamaController.text,
+                            passwordBaru: passwordBaruController.text,
+                          );
+
+                          if (!dialogContext.mounted) return;
+                          if (result['status'] == 'success') {
+                            Navigator.pop(dialogContext);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  result['message']?.toString() ??
+                                      'Kata sandi berhasil diperbarui.',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            sedangMemperbarui = false;
+                            pesanError =
+                                result['message']?.toString() ??
+                                'Kata sandi belum berhasil diperbarui.';
+                          });
+                        },
+                  child: sedangMemperbarui
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'PERBARUI',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'BATAL',
-                style: TextStyle(color: isDark ? Colors.white70 : Colors.grey),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-              ),
-              onPressed: () async {
-                if (!_formKeyPassword.currentState!.validate()) return;
-
-                final dataKunci = {
-                  "id_user": widget.extraData['id'].toString(),
-                  "password_lama": _passLamaController.text.trim(),
-                  "password_baru": _passBaruController.text.trim(),
-                };
-
-                final res = await AuthService.gantiPassword(dataKunci);
-                if (!mounted) return;
-                Navigator.pop(context);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(res['message'] ?? 'Proses selesai.'),
-                    backgroundColor: res['status'] == 'success'
-                        ? Colors.green
-                        : Colors.red,
-                  ),
-                );
-              },
-              child: const Text(
-                'PERBARUI',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+          );
+        },
+      ),
+    ).whenComplete(() {
+      passwordLamaController.dispose();
+      passwordBaruController.dispose();
+      konfirmasiPasswordController.dispose();
+    });
   }
 
   Widget _buildHalamanHomeUtama() {
@@ -739,242 +812,254 @@ class _DashboardScreenState extends State<DashboardScreen>
                 style: TextStyle(fontSize: 12, color: warnaTeksSub),
               ),
               const SizedBox(height: 14),
-              GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 10,
-                childAspectRatio: 0.85,
-                children: [
-                  // --- KONTROL GRID MENU KHUSUS ADMIN ---
-                  if (widget.role == 'admin') ...[
-                    _buildItemMenuBulat(
-                      'Registrasi',
-                      Icons.person_add_alt_1_rounded,
-                      Colors.red,
-                      () {
-                        setState(() => _currentIndex = 2);
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Data Kelas',
-                      Icons.grid_view_rounded,
-                      Colors.blue,
-                      () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const KelasScreen(kelasSiswa: ''),
-                          ),
-                        );
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Statistik',
-                      Icons.bar_chart_rounded,
-                      Colors.green,
-                      () {
-                        setState(() => _currentIndex = 1);
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Buat Event',
-                      Icons.campaign_rounded,
-                      Colors.amber.shade800,
-                      () {
-                        setState(() => _currentIndex = 3);
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    // 🌟 TOMBOL MENU JADWAL BARU: Menggantikan Profil & Sandi lama di halaman utama Admin
-                    _buildItemMenuBulat(
-                      'Jadwal',
-                      Icons.edit_calendar_rounded,
-                      Colors.teal,
-                      () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ManajemenJadwalScreen(
-                              statusTemaGelap: widget.statusTemaGelap,
-                            ),
-                          ),
-                        );
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Penugasan Mapel',
-                      Icons.menu_book_rounded,
-                      Colors.deepPurple,
-                      () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const ManajemenPenugasanMapelScreen(),
-                          ),
-                        );
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Mata Pelajaran',
-                      Icons.library_books_rounded,
-                      Colors.indigo,
-                      () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ManajemenMataPelajaranScreen(
-                              userId: widget.extraData['id'].toString(),
-                            ),
-                          ),
-                        );
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Presensi',
-                      Icons.fact_check_rounded,
-                      Colors.blue,
-                      _bukaPresensi,
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                  ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth < 320
+                      ? 2
+                      : constraints.maxWidth < 400
+                      ? 3
+                      : 4;
+                  return GridView.count(
+                    crossAxisCount: columns,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: columns == 4 ? 0.85 : 0.95,
+                    children: [
+                      // --- KONTROL GRID MENU KHUSUS ADMIN ---
+                      if (widget.role == 'admin') ...[
+                        _buildItemMenuBulat(
+                          'Registrasi',
+                          Icons.person_add_alt_1_rounded,
+                          Colors.red,
+                          () {
+                            setState(() => _currentIndex = 2);
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Data Kelas',
+                          Icons.grid_view_rounded,
+                          Colors.blue,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const KelasScreen(kelasSiswa: ''),
+                              ),
+                            );
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Statistik',
+                          Icons.bar_chart_rounded,
+                          Colors.green,
+                          () {
+                            setState(() => _currentIndex = 1);
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Buat Event',
+                          Icons.campaign_rounded,
+                          Colors.amber.shade800,
+                          () {
+                            setState(() => _currentIndex = 3);
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        // 🌟 TOMBOL MENU JADWAL BARU: Menggantikan Profil & Sandi lama di halaman utama Admin
+                        _buildItemMenuBulat(
+                          'Jadwal',
+                          Icons.edit_calendar_rounded,
+                          Colors.teal,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ManajemenJadwalScreen(
+                                  statusTemaGelap: widget.statusTemaGelap,
+                                ),
+                              ),
+                            );
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Penugasan Mapel',
+                          Icons.menu_book_rounded,
+                          Colors.deepPurple,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ManajemenPenugasanMapelScreen(),
+                              ),
+                            );
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Mata Pelajaran',
+                          Icons.library_books_rounded,
+                          Colors.indigo,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    ManajemenMataPelajaranScreen(
+                                      userId: widget.extraData['id'].toString(),
+                                    ),
+                              ),
+                            );
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Presensi',
+                          Icons.fact_check_rounded,
+                          Colors.blue,
+                          _bukaPresensi,
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                      ],
 
-                  // --- KONTROL GRID MENU KHUSUS GURU ---
-                  if (widget.role == 'guru') ...[
-                    _buildItemMenuBulat(
-                      'Input Nilai',
-                      Icons.assignment_rounded,
-                      Colors.red,
-                      () {
-                        setState(() => _currentIndex = 2);
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Presensi',
-                      Icons.fact_check_rounded,
-                      Colors.blue,
-                      _bukaPresensi,
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Statistik',
-                      Icons.analytics_rounded,
-                      Colors.green,
-                      () {
-                        setState(() => _currentIndex = 1);
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Jadwal Guru',
-                      Icons.calendar_month_rounded,
-                      Colors.teal,
-                      () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TampilanJadwalScreen(
-                              roleUser: widget.role,
-                              namaLengkapUser: widget.namaUser,
-                              statusTemaGelap: widget.statusTemaGelap,
-                            ),
-                          ),
-                        );
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                  ],
+                      // --- KONTROL GRID MENU KHUSUS GURU ---
+                      if (widget.role == 'guru') ...[
+                        _buildItemMenuBulat(
+                          'Input Nilai',
+                          Icons.assignment_rounded,
+                          Colors.red,
+                          () {
+                            setState(() => _currentIndex = 2);
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Presensi',
+                          Icons.fact_check_rounded,
+                          Colors.blue,
+                          _bukaPresensi,
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Statistik',
+                          Icons.analytics_rounded,
+                          Colors.green,
+                          () {
+                            setState(() => _currentIndex = 1);
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Jadwal Guru',
+                          Icons.calendar_month_rounded,
+                          Colors.teal,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TampilanJadwalScreen(
+                                  roleUser: widget.role,
+                                  namaLengkapUser: widget.namaUser,
+                                  statusTemaGelap: widget.statusTemaGelap,
+                                ),
+                              ),
+                            );
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                      ],
 
-                  // --- KONTROL GRID MENU KHUSUS SISWA ---
-                  if (widget.role == 'siswa') ...[
-                    _buildItemMenuBulat(
-                      'Rapor Saya',
-                      Icons.menu_book_rounded,
-                      Colors.red,
-                      () {
-                        setState(() => _currentIndex = 1);
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Presensi',
-                      Icons.co_present_rounded,
-                      Colors.blue,
-                      _bukaPresensi,
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Info MIM',
-                      Icons.notifications_active_rounded,
-                      Colors.amber.shade800,
-                      () {
-                        setState(() => _currentIndex = 3);
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                    _buildItemMenuBulat(
-                      'Jadwal Pelajaran',
-                      Icons.calendar_today_rounded,
-                      Colors.teal,
-                      () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TampilanJadwalScreen(
-                              roleUser: widget.role,
-                              namaLengkapUser: widget.namaUser,
-                              statusTemaGelap: widget.statusTemaGelap,
-                            ),
-                          ),
-                        );
-                      },
-                      warnaKotakKartu,
-                      warnaTeksUtama,
-                    ),
-                  ],
-                ],
+                      // --- KONTROL GRID MENU KHUSUS SISWA ---
+                      if (widget.role == 'siswa') ...[
+                        _buildItemMenuBulat(
+                          'Rapor Saya',
+                          Icons.menu_book_rounded,
+                          Colors.red,
+                          () {
+                            setState(() => _currentIndex = 1);
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Presensi',
+                          Icons.co_present_rounded,
+                          Colors.blue,
+                          _bukaPresensi,
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Info MIM',
+                          Icons.notifications_active_rounded,
+                          Colors.amber.shade800,
+                          () {
+                            setState(() => _currentIndex = 3);
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                        _buildItemMenuBulat(
+                          'Jadwal Pelajaran',
+                          Icons.calendar_today_rounded,
+                          Colors.teal,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TampilanJadwalScreen(
+                                  roleUser: widget.role,
+                                  namaLengkapUser: widget.namaUser,
+                                  statusTemaGelap: widget.statusTemaGelap,
+                                ),
+                              ),
+                            );
+                          },
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 32),
               // =========================================================================
               // SEKSI BERITA MADRASAH BANNER HORIZONTAL SLIDER BANNER (SINKRON DATA LIVE)
               // =========================================================================
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Informasi & Berita Madrasah',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: warnaTeksUtama,
-                      letterSpacing: 0.5,
+                  Expanded(
+                    child: Text(
+                      'Informasi & Berita Madrasah',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: warnaTeksUtama,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   InkWell(
                     onTap: () => setState(() => _currentIndex = 3),
                     child: const Text(
@@ -1512,6 +1597,58 @@ class _DashboardScreenState extends State<DashboardScreen>
         ? Colors.amber.shade400
         : AppColors.primary;
 
+    Widget barisInformasiAkun({
+      required IconData icon,
+      required String label,
+      required String value,
+      bool emphasizedValue = false,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(icon, color: warnaIcon),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: warnaTeksLabel,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    softWrap: true,
+                    style: TextStyle(
+                      color: emphasizedValue
+                          ? warnaTeksIsiKanan
+                          : widget.statusTemaGelap
+                          ? Colors.white70
+                          : Colors.black87,
+                      fontSize: 14,
+                      fontWeight: emphasizedValue
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       color: warnaLatarBelakang,
       height: double.infinity,
@@ -1606,45 +1743,22 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               child: Column(
                 children: [
-                  ListTile(
-                    leading: Icon(Icons.badge_outlined, color: warnaIcon),
-                    title: Text(
-                      'Nomor Induk Resmi',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: warnaTeksLabel,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    trailing: Text(
-                      user['nomor_induk'] ?? '-',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: warnaTeksIsiKanan,
-                        fontSize: 14,
-                      ),
-                    ),
+                  barisInformasiAkun(
+                    icon: Icons.badge_outlined,
+                    label: 'Nomor Induk Resmi',
+                    value: user['nomor_induk']?.toString() ?? '-',
+                    emphasizedValue: true,
                   ),
-                  Divider(height: 1, indent: 50, color: warnaGarisPinggir),
-                  ListTile(
-                    leading: Icon(Icons.email_outlined, color: warnaIcon),
-                    title: Text(
-                      'Alamat Email Sistem',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: warnaTeksLabel,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    trailing: Text(
-                      user['email'] ?? '-',
-                      style: TextStyle(
-                        color: widget.statusTemaGelap
-                            ? Colors.white70
-                            : Colors.black87,
-                        fontSize: 14,
-                      ),
-                    ),
+                  Divider(
+                    height: 1,
+                    indent: 56,
+                    endIndent: 16,
+                    color: warnaGarisPinggir,
+                  ),
+                  barisInformasiAkun(
+                    icon: Icons.email_outlined,
+                    label: 'Alamat Email Sistem',
+                    value: user['email']?.toString() ?? '-',
                   ),
                 ],
               ),
@@ -2008,7 +2122,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         Text(
           label,
           textAlign: TextAlign.center,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 11,

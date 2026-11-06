@@ -273,6 +273,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                           (user['role'] == 'guru' &&
                               user['jenis_guru'] == 'guru_kelas'))
                       DropdownButtonFormField<int>(
+                        isExpanded: true,
                         value: kelasTerpilihId,
                         dropdownColor: warnaLatarDialog,
                         style: TextStyle(color: warnaTeksUtama, fontWeight: FontWeight.bold),
@@ -297,6 +298,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                       if (user['role'] == 'siswa') ...[
                         const SizedBox(height: 18),
                         DropdownButtonFormField<String>(
+                          isExpanded: true,
                           value: tahunAngkatanTerpilih,
                           dropdownColor: warnaLatarDialog,
                           style: TextStyle(color: warnaTeksUtama, fontWeight: FontWeight.bold),

@@ -209,47 +209,47 @@ class AuthService {
     }
   }
 
-  static Future<Map<String, dynamic>> gantiPassword(
-    Map<String, dynamic> dataInput,
-  ) async {
+  static Future<Map<String, dynamic>> gantiPassword({
+    required String passwordLama,
+    required String passwordBaru,
+  }) async {
     try {
       final client = Supabase.instance.client;
       final currentUser = client.auth.currentUser;
-      final email = currentUser?.email;
-      final oldPassword = dataInput['password_lama']?.toString() ?? '';
-      final newPassword = dataInput['password_baru']?.toString() ?? '';
 
-      if (currentUser == null || email == null) {
+      if (currentUser == null) {
         return {
           'status': 'error',
           'message': 'Sesi login tidak ditemukan. Silakan masuk kembali.',
         };
       }
-      if (oldPassword.isEmpty || newPassword.length < 6) {
+      if (passwordLama.isEmpty || passwordBaru.length < 6) {
         return {
           'status': 'error',
           'message': 'Periksa kata sandi lama dan ketentuan kata sandi baru.',
         };
       }
 
-      await client.auth.signInWithPassword(
-        email: email,
-        password: oldPassword,
-      );
       await client.auth.updateUser(
-        UserAttributes(password: newPassword),
+        UserAttributes(password: passwordBaru, currentPassword: passwordLama),
       );
       return {
         'status': 'success',
         'message': 'Kata sandi berhasil diperbarui.',
       };
     } on AuthException catch (error) {
+      final message = error.message.toLowerCase();
       return {
         'status': 'error',
-        'message': AppErrorMessage.from(
-          error,
-          fallback: 'Kata sandi belum berhasil diperbarui. Silakan coba lagi.',
-        ),
+        'message':
+            message.contains('current password') ||
+                message.contains('invalid login credentials')
+            ? 'Kata sandi saat ini tidak sesuai.'
+            : AppErrorMessage.from(
+                error,
+                fallback:
+                    'Kata sandi belum berhasil diperbarui. Silakan coba lagi.',
+              ),
       };
     } catch (e) {
       return {

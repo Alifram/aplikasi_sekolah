@@ -491,6 +491,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                     // Dropdown Pilih Siswa (Type-Safe & Bersih dari Warning)
                     DropdownButtonFormField<String>(
                       value: _selectedSiswaId,
+                      isExpanded: true,
                       hint: const Text('Pilih Nama Siswa'),
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
@@ -541,6 +542,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                     // Dropdown Kombinasi Format Kelas & Semester
                     DropdownButtonFormField<String>(
                       value: _selectedSemesterFormat,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Tingkat Kelas & Kategori Semester',
                         border: OutlineInputBorder(),
@@ -586,6 +588,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                           'kelas-mapel-${_selectedSemesterFormat ?? 'kosong'}',
                         ),
                         value: _kelasMapelTerpilihId,
+                        isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Mapel dan Tahun Ajaran',
                           border: OutlineInputBorder(),

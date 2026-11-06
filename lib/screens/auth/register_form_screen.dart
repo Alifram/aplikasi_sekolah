@@ -316,59 +316,55 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               if (_selectedRole == 'siswa' ||
                   (_selectedRole == 'guru' &&
                       _selectedJenisGuru == 'guru_kelas')) ...[
-                Row(
+                Column(
                   children: [
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: _selectedKelasId,
+                    DropdownButtonFormField<int>(
+                      value: _selectedKelasId,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: 'Kelas',
+                        prefixIcon: const Icon(Icons.school_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: _kelas.map((kelas) {
+                        return DropdownMenuItem<int>(
+                          value: int.tryParse(kelas['id'].toString()),
+                          child: Text(kelas['nama'].toString()),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedKelasId = value;
+                        });
+                      },
+                      validator: (value) =>
+                          value == null ? 'Pilih kelas' : null,
+                    ),
+                    if (_selectedRole == 'siswa') ...[
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedAngkatanSiswa,
+                        isExpanded: true,
                         decoration: InputDecoration(
-                          labelText: 'Kelas',
-                          prefixIcon: const Icon(Icons.school_outlined),
+                          labelText: 'Tahun Angkatan',
+                          prefixIcon: const Icon(Icons.calendar_month_outlined),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        items: _kelas.map((kelas) {
-                          return DropdownMenuItem<int>(
-                            value: int.tryParse(kelas['id'].toString()),
-                            child: Text(kelas['nama'].toString()),
+                        items: _daftarTahunAngkatanOpsi.map((String t) {
+                          return DropdownMenuItem<String>(
+                            value: t,
+                            child: Text('Angkatan $t'),
                           );
                         }).toList(),
                         onChanged: (value) {
                           setState(() {
-                            _selectedKelasId = value;
+                            _selectedAngkatanSiswa = value!;
                           });
                         },
-                        validator: (value) =>
-                            value == null ? 'Pilih kelas' : null,
-                      ),
-                    ),
-                    if (_selectedRole == 'siswa') ...[
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedAngkatanSiswa,
-                          decoration: InputDecoration(
-                            labelText: 'Tahun Angkatan',
-                            prefixIcon: const Icon(
-                              Icons.calendar_month_outlined,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          items: _daftarTahunAngkatanOpsi.map((String t) {
-                            return DropdownMenuItem<String>(
-                              value: t,
-                              child: Text('Angkatan $t'),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedAngkatanSiswa = value!;
-                            });
-                          },
-                        ),
                       ),
                     ],
                   ],

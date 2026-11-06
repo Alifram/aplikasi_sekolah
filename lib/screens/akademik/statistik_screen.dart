@@ -4,8 +4,8 @@ import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
 import '../informasi/pantau_data_screen.dart';
 
 class StatistikScreen extends StatefulWidget {
-  final String loginRole; 
-  final String kelasDiajarGuru; 
+  final String loginRole;
+  final String kelasDiajarGuru;
   final bool statusTemaGelap;
 
   const StatistikScreen({
@@ -22,7 +22,7 @@ class StatistikScreen extends StatefulWidget {
 class _StatistikScreenState extends State<StatistikScreen> {
   String _angkatanTerpilih = '2026';
   bool _isLoading = false;
-  
+
   Map<String, dynamic> _dataStatistik = {};
 
   @override
@@ -52,7 +52,9 @@ class _StatistikScreenState extends State<StatistikScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = widget.statusTemaGelap;
-    final Color warnaLatar = isDark ? const Color(0xFF0B141A) : Colors.grey.shade50;
+    final Color warnaLatar = isDark
+        ? const Color(0xFF0B141A)
+        : Colors.grey.shade50;
     final Color warnaKartu = isDark ? const Color(0xFF1C2D35) : Colors.white;
     final Color warnaTeksUtama = isDark ? Colors.white : Colors.black87;
     final Color warnaTeksSub = isDark ? Colors.white70 : Colors.black54;
@@ -60,47 +62,72 @@ class _StatistikScreenState extends State<StatistikScreen> {
     return Scaffold(
       backgroundColor: warnaLatar,
       appBar: AppBar(
-        title: const Text('Statistik Akademik', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text(
+          'Statistik Akademik',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         backgroundColor: AppColors.primary,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Tahun Angkatan Siswa:', style: TextStyle(color: warnaTeksUtama, fontWeight: FontWeight.w500)),
-                      DropdownButton<String>(
-                        value: _angkatanTerpilih,
-                        dropdownColor: warnaKartu,
-                        style: TextStyle(color: warnaTeksUtama, fontWeight: FontWeight.bold),
-                        items: ['2024', '2025', '2026', '2027'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: (v) {
-                          if (v != null) {
-                            setState(() => _angkatanTerpilih = v);
-                            _panggilDataStatistik();
-                          }
-                        },
+                      Text(
+                        'Tahun Angkatan Siswa:',
+                        style: TextStyle(
+                          color: warnaTeksUtama,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(
+                        width: double.infinity,
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: _angkatanTerpilih,
+                          dropdownColor: warnaKartu,
+                          style: TextStyle(
+                            color: warnaTeksUtama,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          items: ['2024', '2025', '2026', '2027']
+                              .map(
+                                (t) =>
+                                    DropdownMenuItem(value: t, child: Text(t)),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) {
+                              setState(() => _angkatanTerpilih = v);
+                              _panggilDataStatistik();
+                            }
+                          },
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
-                  
+
                   ListView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     children: _dataStatistik.keys
-                        .map((name) => _buildBarisStatistikKelas(
-                              name,
-                              warnaKartu,
-                              warnaTeksUtama,
-                              warnaTeksSub,
-                            ))
+                        .map(
+                          (name) => _buildBarisStatistikKelas(
+                            name,
+                            warnaKartu,
+                            warnaTeksUtama,
+                            warnaTeksSub,
+                          ),
+                        )
                         .toList(),
                   ),
                 ],
@@ -109,15 +136,29 @@ class _StatistikScreenState extends State<StatistikScreen> {
     );
   }
 
-  Widget _buildBarisStatistikKelas(String namaKelas, Color bgKartu, Color txtUtama, Color txtSub) {
+  Widget _buildBarisStatistikKelas(
+    String namaKelas,
+    Color bgKartu,
+    Color txtUtama,
+    Color txtSub,
+  ) {
     bool isAdmin = widget.loginRole == 'admin';
-    bool isGuruKelasIni = widget.loginRole == 'guru' && widget.kelasDiajarGuru == namaKelas;
+    bool isGuruKelasIni =
+        widget.loginRole == 'guru' && widget.kelasDiajarGuru == namaKelas;
 
     if (!isAdmin && !isGuruKelasIni) return const SizedBox.shrink();
 
-    double sem1 = double.tryParse(_dataStatistik[namaKelas]?['semester_1']?.toString() ?? '0.0') ?? 0.0;
-    double sem2 = double.tryParse(_dataStatistik[namaKelas]?['semester_2']?.toString() ?? '0.0') ?? 0.0;
-    
+    double sem1 =
+        double.tryParse(
+          _dataStatistik[namaKelas]?['semester_1']?.toString() ?? '0.0',
+        ) ??
+        0.0;
+    double sem2 =
+        double.tryParse(
+          _dataStatistik[namaKelas]?['semester_2']?.toString() ?? '0.0',
+        ) ??
+        0.0;
+
     double selisih = (sem2 - sem1).abs();
     bool isNaik = sem2 >= sem1;
     final Color warnaTeksMuted = txtSub.withOpacity(0.7);
@@ -132,9 +173,9 @@ class _StatistikScreenState extends State<StatistikScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => PantauDataScreen(
-                filterKelasOtomatis: namaKelas, 
+                filterKelasOtomatis: namaKelas,
                 filterAngkatanOtomatis: _angkatanTerpilih,
-                statusTemaGelap: widget.statusTemaGelap, 
+                statusTemaGelap: widget.statusTemaGelap,
               ),
             ),
           );
@@ -145,37 +186,80 @@ class _StatistikScreenState extends State<StatistikScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(namaKelas, style: TextStyle(fontWeight: FontWeight.bold, color: txtUtama, fontSize: 15)),
+                  Text(
+                    namaKelas,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: txtUtama,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   if (sem1 > 0 && sem2 > 0)
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
                       children: [
-                        Icon(isNaik ? Icons.trending_up : Icons.trending_down, color: isNaik ? Colors.green : Colors.red, size: 16),
-                        Text(
-                          ' ${isNaik ? 'Naik' : 'Turun'} ${selisih.toStringAsFixed(1)}', 
-                          style: TextStyle(color: isNaik ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
+                        Icon(
+                          isNaik ? Icons.trending_up : Icons.trending_down,
+                          color: isNaik ? Colors.green : Colors.red,
+                          size: 16,
                         ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.grey),
+                        Text(
+                          ' ${isNaik ? 'Naik' : 'Turun'} ${selisih.toStringAsFixed(1)}',
+                          style: TextStyle(
+                            color: isNaik ? Colors.green : Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
                       ],
                     )
                   else
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
                       children: [
-                        Text('Belum ada log nilai lengkap', style: TextStyle(color: warnaTeksMuted, fontSize: 11, fontStyle: FontStyle.italic)),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.grey),
+                        Text(
+                          'Belum ada log nilai lengkap',
+                          style: TextStyle(
+                            color: warnaTeksMuted,
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
                       ],
                     ),
                 ],
               ),
               const SizedBox(height: 16),
-              
-              _buildGrafikBarDinamis("Semester 1", sem1, Colors.orange.shade400, txtSub),
+
+              _buildGrafikBarDinamis(
+                "Semester 1",
+                sem1,
+                Colors.orange.shade400,
+                txtSub,
+              ),
               const SizedBox(height: 12),
-              _buildGrafikBarDinamis("Semester 2", sem2, AppColors.primary, txtSub),
+              _buildGrafikBarDinamis(
+                "Semester 2",
+                sem2,
+                AppColors.primary,
+                txtSub,
+              ),
             ],
           ),
         ),
@@ -183,19 +267,31 @@ class _StatistikScreenState extends State<StatistikScreen> {
     );
   }
 
-  Widget _buildGrafikBarDinamis(String labelSemester, double skorNilai, Color warnaBatang, Color warnaTeks) {
+  Widget _buildGrafikBarDinamis(
+    String labelSemester,
+    double skorNilai,
+    Color warnaBatang,
+    Color warnaTeks,
+  ) {
     double lebarPersentase = (skorNilai / 100).clamp(0.0, 1.0);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(labelSemester, style: TextStyle(fontSize: 12, color: warnaTeks)),
             Text(
-              skorNilai.toStringAsFixed(1), 
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: warnaTeks),
+              labelSemester,
+              style: TextStyle(fontSize: 12, color: warnaTeks),
+            ),
+            Text(
+              skorNilai.toStringAsFixed(1),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: warnaTeks,
+              ),
             ),
           ],
         ),
