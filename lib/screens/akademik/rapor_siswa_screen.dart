@@ -24,15 +24,8 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
     return double.tryParse(value.toString());
   }
 
-  double _rataRataNilai(Map<String, dynamic> nilai) {
-    final scores = [
-      _parseNilai(nilai['nilai_tugas']),
-      _parseNilai(nilai['nilai_uts']),
-      _parseNilai(nilai['nilai_uas']),
-    ].whereType<double>().toList();
-    if (scores.isEmpty) return 0;
-    return scores.reduce((total, score) => total + score) / scores.length;
-  }
+  double? _rataRataNilaiHarian(Map<String, dynamic> nilai) =>
+      _parseNilai(nilai['nilai_tugas']);
 
   @override
   void initState() {
@@ -132,7 +125,7 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                         pw.Padding(
                           padding: const pw.EdgeInsets.all(6),
                           child: pw.Text(
-                            'Tugas',
+                            'Rata-rata harian',
                             style: pw.TextStyle(
                               fontWeight: pw.FontWeight.bold,
                               fontSize: 10,
@@ -162,22 +155,11 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                             textAlign: pw.TextAlign.center,
                           ),
                         ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            'Rerata',
-                            style: pw.TextStyle(
-                              fontWeight: pw.FontWeight.bold,
-                              fontSize: 10,
-                            ),
-                            textAlign: pw.TextAlign.center,
-                          ),
-                        ),
                       ],
                     ),
                     // Perulangan Data Nilai dari Server masuk ke Tabel PDF
                     ..._listRapor.map((nilai) {
-                      final rataRata = _rataRataNilai(
+                      final rataHarian = _rataRataNilaiHarian(
                         Map<String, dynamic>.from(nilai),
                       );
                       return pw.TableRow(
@@ -192,7 +174,7 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(6),
                             child: pw.Text(
-                              (nilai['nilai_tugas'] ?? '-').toString(),
+                              (rataHarian?.toStringAsFixed(1) ?? '-'),
                               style: const pw.TextStyle(fontSize: 10),
                               textAlign: pw.TextAlign.center,
                             ),
@@ -210,17 +192,6 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                             child: pw.Text(
                               (nilai['nilai_uas'] ?? '-').toString(),
                               style: const pw.TextStyle(fontSize: 10),
-                              textAlign: pw.TextAlign.center,
-                            ),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(
-                              rataRata.toStringAsFixed(1),
-                              style: pw.TextStyle(
-                                fontWeight: pw.FontWeight.bold,
-                                fontSize: 10,
-                              ),
                               textAlign: pw.TextAlign.center,
                             ),
                           ),
@@ -319,9 +290,10 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                 final nilai = _listRapor[index];
 
                 // Perbaikan total bug null-safety konversi nilai rapor
-                final rataRata = _rataRataNilai(
+                final rataHarian = _rataRataNilaiHarian(
                   Map<String, dynamic>.from(nilai),
                 );
+                final rataHarianLulus = rataHarian != null && rataHarian >= 75;
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -331,12 +303,16 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                   ),
                   child: ExpansionTile(
                     leading: CircleAvatar(
-                      backgroundColor: rataRata >= 75
+                      backgroundColor: rataHarian == null
+                          ? Colors.grey.shade100
+                          : rataHarianLulus
                           ? Colors.green.shade50
                           : Colors.red.shade50,
                       child: Icon(
                         Icons.menu_book,
-                        color: rataRata >= 75
+                        color: rataHarian == null
+                            ? Colors.grey
+                            : rataHarianLulus
                             ? Colors.green.shade800
                             : Colors.red.shade800,
                       ),
@@ -358,16 +334,20 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: rataRata >= 75
+                        color: rataHarian == null
+                            ? Colors.grey.withValues(alpha: 0.1)
+                            : rataHarianLulus
                             ? Colors.green.withValues(alpha: 0.1)
                             : Colors.red.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        'Rerata: ${rataRata.toStringAsFixed(1)}',
+                        'Harian: ${rataHarian?.toStringAsFixed(1) ?? '-'}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: rataRata >= 75
+                          color: rataHarian == null
+                              ? Colors.grey
+                              : rataHarianLulus
                               ? Colors.green.shade800
                               : Colors.red.shade800,
                         ),
@@ -382,8 +362,8 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
                                 _buildItemNilai(
-                                  'Tugas',
-                                  (nilai['nilai_tugas'] ?? '-').toString(),
+                                  'Harian (rata-rata)',
+                                  rataHarian?.toStringAsFixed(1) ?? '-',
                                 ),
                                 _buildItemNilai(
                                   'UTS',

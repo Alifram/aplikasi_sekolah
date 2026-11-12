@@ -1,13 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
 import 'package:aplikasi_sekolah/core/services/dashboard_service.dart';
 import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 import 'package:aplikasi_sekolah/core/services/kelas_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aplikasi_sekolah/core/services/schedule_alarm_service.dart';
 import '../akademik/manajemen_jadwal_screen.dart';
 import '../akademik/manajemen_penugasan_mapel_screen.dart';
 import '../akademik/manajemen_mata_pelajaran_screen.dart';
@@ -58,11 +57,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _totalKelas = 0;
   int _totalPengumuman = 0;
   Timer? _scheduleAlarmTimer;
-  List<Map<String, dynamic>> _scheduleAlarmItems = [];
-  DateTime? _scheduleAlarmLoadedAt;
-  DateTime? _scheduleAlarmLastAttemptAt;
   bool _isLoadingScheduleAlarm = false;
-  final Set<String> _firedScheduleAlarms = {};
+  bool _scheduleAlarmPermissionWarningShown = false;
 
   List<String> get _daftarOpsiAngkatan {
     int tahunSekarang = DateTime.now().year;
@@ -93,7 +89,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (!_supportsScheduleAlarm) return;
     if (state == AppLifecycleState.resumed) {
       _startScheduleAlarmMonitor();
-      unawaited(_loadScheduleAlarmData());
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       _scheduleAlarmTimer?.cancel();
@@ -104,130 +99,47 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _startScheduleAlarmMonitor() {
     if (_scheduleAlarmTimer != null) return;
     _scheduleAlarmTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => unawaited(_checkScheduleAlarm()),
+      const Duration(hours: 24),
+      (_) => unawaited(_syncScheduleAlarms()),
     );
-    unawaited(_checkScheduleAlarm());
+    unawaited(_syncScheduleAlarms());
   }
 
-  String? _weekdayFor(DateTime date) {
-    const weekdays = {
-      DateTime.monday: 'Senin',
-      DateTime.tuesday: 'Selasa',
-      DateTime.wednesday: 'Rabu',
-      DateTime.thursday: 'Kamis',
-      DateTime.friday: 'Jumat',
-      DateTime.saturday: 'Sabtu',
-    };
-    return weekdays[date.weekday];
-  }
-
-  String _currentAcademicYear(DateTime date) {
-    final startYear = date.month >= 7 ? date.year : date.year - 1;
-    return '$startYear/${startYear + 1}';
-  }
-
-  Future<void> _checkScheduleAlarm() async {
-    if (!_supportsScheduleAlarm || !mounted || _isLoadingScheduleAlarm) return;
-    final now = DateTime.now();
-    final lastAttempt = _scheduleAlarmLastAttemptAt;
-    final needsRefresh =
-        _scheduleAlarmLoadedAt == null ||
-        now.difference(_scheduleAlarmLoadedAt!) >= const Duration(minutes: 10);
-    final canRetry =
-        lastAttempt == null ||
-        now.difference(lastAttempt) >= const Duration(minutes: 1);
-    if (needsRefresh && canRetry) {
-      await _loadScheduleAlarmData();
-    }
-
-    final today = _weekdayFor(now);
-    if (today == null) return;
-    final academicYear = _currentAcademicYear(now);
-    for (final schedule in _scheduleAlarmItems) {
-      if (schedule['hari']?.toString() != today ||
-          schedule['tahun_ajaran']?.toString() != academicYear) {
-        continue;
-      }
-
-      final startTime =
-          schedule['jam_mulai_format']?.toString() ??
-          schedule['jam_mulai']?.toString();
-      if (startTime == null || startTime.length < 5) continue;
-      final parts = startTime.substring(0, 5).split(':');
-      if (parts.length != 2) continue;
-      final hour = int.tryParse(parts[0]);
-      final minute = int.tryParse(parts[1]);
-      if (hour == null || minute == null) continue;
-
-      final start = DateTime(now.year, now.month, now.day, hour, minute);
-      final elapsed = now.difference(start);
-      if (elapsed.isNegative || elapsed >= const Duration(minutes: 1)) {
-        continue;
-      }
-
-      final id =
-          schedule['id']?.toString() ??
-          '${schedule['mata_pelajaran']}:$startTime';
-      final alarmKey = '${now.year}-${now.month}-${now.day}:$id';
-      if (_firedScheduleAlarms.add(alarmKey)) {
-        unawaited(_notifyScheduleStart(schedule, startTime));
-      }
-    }
-  }
-
-  Future<void> _loadScheduleAlarmData() async {
-    if (_isLoadingScheduleAlarm || !_supportsScheduleAlarm) return;
+  Future<void> _syncScheduleAlarms() async {
+    if (_isLoadingScheduleAlarm || !_supportsScheduleAlarm || !mounted) return;
     _isLoadingScheduleAlarm = true;
-    _scheduleAlarmLastAttemptAt = DateTime.now();
     try {
-      final weekday = _weekdayFor(DateTime.now());
-      if (weekday == null) {
-        _scheduleAlarmItems = [];
-        _scheduleAlarmLoadedAt = DateTime.now();
-        return;
+      final isScheduled = await ScheduleAlarmService.syncForCurrentUser();
+      if (!mounted) return;
+      if (!isScheduled && !_scheduleAlarmPermissionWarningShown) {
+        _scheduleAlarmPermissionWarningShown = true;
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Izinkan notifikasi dan alarm tepat waktu di Pengaturan Android '
+              'agar pengingat jadwal dapat berbunyi.',
+            ),
+            duration: Duration(seconds: 8),
+          ),
+        );
+      } else if (isScheduled) {
+        _scheduleAlarmPermissionWarningShown = false;
       }
-      final response = await Supabase.instance.client.rpc(
-        'get_my_schedule',
-        params: {'p_hari': weekday},
-      );
-      if (response is! List) {
-        throw const FormatException('Respons jadwal alarm tidak valid.');
+    } catch (error, stackTrace) {
+      debugPrint('Gagal menjadwalkan alarm pelajaran: $error\n$stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Alarm jadwal belum dapat disiapkan. Periksa koneksi internet '
+              'dan coba buka ulang aplikasi.',
+            ),
+          ),
+        );
       }
-      _scheduleAlarmItems = response
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
-      _scheduleAlarmLoadedAt = DateTime.now();
-    } catch (error) {
-      debugPrint('Gagal memuat jadwal untuk alarm pergantian jam: $error');
     } finally {
       _isLoadingScheduleAlarm = false;
     }
-  }
-
-  Future<void> _notifyScheduleStart(
-    Map<String, dynamic> schedule,
-    String startTime,
-  ) async {
-    try {
-      await SystemSound.play(SystemSoundType.alert);
-      await HapticFeedback.vibrate();
-    } catch (error) {
-      debugPrint('Alarm suara/getar tidak tersedia di perangkat ini: $error');
-    }
-    if (!mounted) return;
-
-    final subject = schedule['mata_pelajaran']?.toString() ?? 'pelajaran';
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Pergantian jam: $subject dimulai pukul $startTime.'),
-          duration: const Duration(seconds: 8),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
   }
 
   @override
@@ -432,190 +344,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _tampilkanDialogGantiPassword() {
-    final passwordLamaController = TextEditingController();
-    final passwordBaruController = TextEditingController();
-    final konfirmasiPasswordController = TextEditingController();
-    final formKeyPassword = GlobalKey<FormState>();
-    var sedangMemperbarui = false;
-    String? pesanError;
-
-    final bool isDark = widget.statusTemaGelap;
-    final Color warnaLatarDialog = isDark
-        ? const Color(0xFF1C2D35)
-        : Colors.white;
-    final Color warnaTeksUtama = isDark ? Colors.white : Colors.black87;
-
-    showDialog<void>(
+    showDialog<String>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return PopScope(
-            canPop: !sedangMemperbarui,
-            child: AlertDialog(
-              backgroundColor: warnaLatarDialog,
-              scrollable: true,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Text(
-                'Ganti Password Akun',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: warnaTeksUtama,
-                  fontSize: 18,
-                ),
-              ),
-              content: SizedBox(
-                width: 360,
-                child: Form(
-                  key: formKeyPassword,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: passwordLamaController,
-                        obscureText: true,
-                        autofillHints: const [AutofillHints.password],
-                        style: TextStyle(color: warnaTeksUtama),
-                        decoration: const InputDecoration(
-                          labelText: 'Password Saat Ini',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) => value == null || value.isEmpty
-                            ? 'Password lama wajib diisi'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: passwordBaruController,
-                        obscureText: true,
-                        style: TextStyle(color: warnaTeksUtama),
-                        decoration: const InputDecoration(
-                          labelText: 'Password Baru',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Password baru wajib diisi';
-                          }
-                          if (value.length < 6) {
-                            return 'Minimal terdiri dari 6 karakter';
-                          }
-                          if (value == passwordLamaController.text) {
-                            return 'Password baru harus berbeda';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: konfirmasiPasswordController,
-                        obscureText: true,
-                        style: TextStyle(color: warnaTeksUtama),
-                        decoration: const InputDecoration(
-                          labelText: 'Ulangi Password Baru',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) =>
-                            value != passwordBaruController.text
-                            ? 'Konfirmasi password belum sama'
-                            : null,
-                      ),
-                      if (pesanError != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          pesanError!,
-                          style: TextStyle(
-                            color: Colors.red.shade700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: sedangMemperbarui
-                      ? null
-                      : () => Navigator.pop(dialogContext),
-                  child: Text(
-                    'BATAL',
-                    style: TextStyle(
-                      color: isDark ? Colors.white70 : Colors.grey,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                  ),
-                  onPressed: sedangMemperbarui
-                      ? null
-                      : () async {
-                          if (!formKeyPassword.currentState!.validate()) {
-                            return;
-                          }
-
-                          setDialogState(() {
-                            sedangMemperbarui = true;
-                            pesanError = null;
-                          });
-                          final result = await AuthService.gantiPassword(
-                            passwordLama: passwordLamaController.text,
-                            passwordBaru: passwordBaruController.text,
-                          );
-
-                          if (!dialogContext.mounted) return;
-                          if (result['status'] == 'success') {
-                            Navigator.pop(dialogContext);
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  result['message']?.toString() ??
-                                      'Kata sandi berhasil diperbarui.',
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                            return;
-                          }
-
-                          setDialogState(() {
-                            sedangMemperbarui = false;
-                            pesanError =
-                                result['message']?.toString() ??
-                                'Kata sandi belum berhasil diperbarui.';
-                          });
-                        },
-                  child: sedangMemperbarui
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'PERBARUI',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    ).whenComplete(() {
-      passwordLamaController.dispose();
-      passwordBaruController.dispose();
-      konfirmasiPasswordController.dispose();
+      builder: (_) => _GantiPasswordDialog(isDark: widget.statusTemaGelap),
+    ).then((message) {
+      if (!mounted || message == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.green),
+      );
     });
   }
 
@@ -665,27 +401,32 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Selamat Datang,',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 13,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Selamat Datang,',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 13,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.namaUser,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.namaUser,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -1978,58 +1719,64 @@ class _DashboardScreenState extends State<DashboardScreen>
               elevation: 0,
             ),
       body: SafeArea(child: _dapatkanKontenHalaman()),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-          if (index == 0) {
-            _muatUlangEventHome();
-            if (widget.role == 'admin') _muatRingkasanAdmin();
-          }
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: widget.statusTemaGelap
-            ? const Color(0xFF1C2D35)
-            : Colors.white,
-        selectedItemColor: widget.statusTemaGelap
-            ? Colors.amber.shade400
-            : AppColors.primary,
-        unselectedItemColor: widget.statusTemaGelap
-            ? Colors.white38
-            : Colors.grey,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(fontSize: 11),
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded),
-            label: 'Home',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_rounded),
-            label: 'Statistik',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(
-              widget.role == 'admin'
-                  ? Icons.person_add_rounded
-                  : Icons.assignment_rounded,
+      bottomNavigationBar: Container(
+        color: widget.statusTemaGelap ? const Color(0xFF1C2D35) : Colors.white,
+        child: SafeArea(
+          top: false,
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+              if (index == 0) {
+                _muatUlangEventHome();
+                if (widget.role == 'admin') _muatRingkasanAdmin();
+              }
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: widget.statusTemaGelap
+                ? const Color(0xFF1C2D35)
+                : Colors.white,
+            selectedItemColor: widget.statusTemaGelap
+                ? Colors.amber.shade400
+                : AppColors.primary,
+            unselectedItemColor: widget.statusTemaGelap
+                ? Colors.white38
+                : Colors.grey,
+            selectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
             ),
-            label: widget.role == 'admin' ? 'Registrasi' : 'Akademik',
+            unselectedLabelStyle: const TextStyle(fontSize: 11),
+            items: [
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.bar_chart_rounded),
+                label: 'Statistik',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(
+                  widget.role == 'admin'
+                      ? Icons.person_add_rounded
+                      : Icons.assignment_rounded,
+                ),
+                label: widget.role == 'admin' ? 'Registrasi' : 'Akademik',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.notifications_rounded),
+                label: 'Info',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.account_circle_rounded),
+                label: 'Profil',
+              ),
+            ],
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_rounded),
-            label: 'Info',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle_rounded),
-            label: 'Profil',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2180,6 +1927,184 @@ class _DashboardScreenState extends State<DashboardScreen>
               fontWeight: FontWeight.w500,
             ),
             overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GantiPasswordDialog extends StatefulWidget {
+  final bool isDark;
+
+  const _GantiPasswordDialog({required this.isDark});
+
+  @override
+  State<_GantiPasswordDialog> createState() => _GantiPasswordDialogState();
+}
+
+class _GantiPasswordDialogState extends State<_GantiPasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _passwordLamaController = TextEditingController();
+  final _passwordBaruController = TextEditingController();
+  final _konfirmasiPasswordController = TextEditingController();
+  bool _isSubmitting = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _passwordLamaController.dispose();
+    _passwordBaruController.dispose();
+    _konfirmasiPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_isSubmitting || !_formKey.currentState!.validate()) return;
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    final result = await AuthService.gantiPassword(
+      passwordLama: _passwordLamaController.text,
+      passwordBaru: _passwordBaruController.text,
+    );
+    if (!mounted) return;
+
+    if (result['status'] == 'success') {
+      FocusManager.instance.primaryFocus?.unfocus();
+      Navigator.of(
+        context,
+      ).pop(result['message']?.toString() ?? 'Kata sandi berhasil diperbarui.');
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = false;
+      _errorMessage =
+          result['message']?.toString() ??
+          'Kata sandi belum berhasil diperbarui.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = widget.isDark ? Colors.white : Colors.black87;
+    final dialogColor = widget.isDark ? const Color(0xFF1C2D35) : Colors.white;
+
+    return PopScope(
+      canPop: !_isSubmitting,
+      child: AlertDialog(
+        backgroundColor: dialogColor,
+        scrollable: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Ganti Password Akun',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+            fontSize: 18,
+          ),
+        ),
+        content: SizedBox(
+          width: 360,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _passwordLamaController,
+                  obscureText: true,
+                  autofillHints: const [AutofillHints.password],
+                  enabled: !_isSubmitting,
+                  style: TextStyle(color: textColor),
+                  decoration: const InputDecoration(
+                    labelText: 'Password Saat Ini',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Password lama wajib diisi'
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _passwordBaruController,
+                  obscureText: true,
+                  enabled: !_isSubmitting,
+                  style: TextStyle(color: textColor),
+                  decoration: const InputDecoration(
+                    labelText: 'Password Baru',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Password baru wajib diisi';
+                    }
+                    if (value.length < 6) {
+                      return 'Minimal terdiri dari 6 karakter';
+                    }
+                    if (value == _passwordLamaController.text) {
+                      return 'Password baru harus berbeda';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _konfirmasiPasswordController,
+                  obscureText: true,
+                  enabled: !_isSubmitting,
+                  style: TextStyle(color: textColor),
+                  decoration: const InputDecoration(
+                    labelText: 'Ulangi Password Baru',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value != _passwordBaruController.text
+                      ? 'Konfirmasi password belum sama'
+                      : null,
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _errorMessage!,
+                    style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+            child: Text(
+              'BATAL',
+              style: TextStyle(
+                color: widget.isDark ? Colors.white70 : Colors.grey,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: _isSubmitting ? null : _submit,
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    'PERBARUI',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
         ],
       ),

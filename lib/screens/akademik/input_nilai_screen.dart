@@ -33,10 +33,13 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
   String? _selectedSiswaId;
   int? _kelasMapelTerpilihId;
   String? _selectedSemesterFormat;
-  String _jenisNilaiTerpilih = 'tugas';
+  String _jenisNilaiTerpilih = 'harian';
+  DateTime _tanggalPenilaian = DateTime.now();
 
   final TextEditingController _skorNilaiController = TextEditingController();
   final TextEditingController _keteranganController = TextEditingController();
+  final TextEditingController _namaPenilaianController =
+      TextEditingController();
   final String _tanggalHariIni = DateTime.now().toString().substring(0, 10);
 
   List<String> get _daftarSemesterFormat {
@@ -68,7 +71,25 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
   void dispose() {
     _skorNilaiController.dispose();
     _keteranganController.dispose();
+    _namaPenilaianController.dispose();
     super.dispose();
+  }
+
+  String _formatTanggal(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+
+  Future<void> _pilihTanggalPenilaian() async {
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: _tanggalPenilaian,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (selectedDate != null && mounted) {
+      setState(() => _tanggalPenilaian = selectedDate);
+    }
   }
 
   Map<String, dynamic>? get _siswaTerpilih {
@@ -217,7 +238,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Periksa kembali siswa, kelas, mapel, semester, dan skor.',
+            'Periksa siswa, kelas, mapel, jenis nilai, nama penilaian, dan skor.',
           ),
           backgroundColor: Colors.red,
         ),
@@ -281,6 +302,10 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
       "jenis_nilai": _jenisNilaiTerpilih,
       "skor_nilai": _skorNilaiController.text.trim(),
       "keterangan": _keteranganController.text.trim(),
+      if (_jenisNilaiTerpilih == 'harian') ...{
+        "nama_penilaian": _namaPenilaianController.text.trim(),
+        "tanggal_penilaian": _formatTanggal(_tanggalPenilaian),
+      },
     };
 
     try {
@@ -311,6 +336,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
   void _bersihkanForm() {
     _skorNilaiController.clear();
     _keteranganController.clear();
+    _namaPenilaianController.clear();
     setState(() {
       _selectedSiswaId = null;
       final defaultClass = widget.kelasGuru.trim();
@@ -321,7 +347,8 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
           ? null
           : _daftarSemesterFormat.first;
       _kelasMapelTerpilihId = null;
-      _jenisNilaiTerpilih = 'tugas';
+      _jenisNilaiTerpilih = 'harian';
+      _tanggalPenilaian = DateTime.now();
     });
     final className = _selectedSemesterFormat?.split(' - ').first;
     if (className != null) _panggilDaftarSiswa(className);
@@ -330,7 +357,9 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
   @override
   Widget build(BuildContext context) {
     final noAssignments =
-        !_isPenugasanLoading && _listPenugasan.isEmpty && _penugasanError == null;
+        !_isPenugasanLoading &&
+        _listPenugasan.isEmpty &&
+        _penugasanError == null;
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
@@ -625,77 +654,60 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
                       ),
                     const SizedBox(height: 20),
 
-                    // FITUR CHECKBOX JENIS KATEGORI NILAI
+                    // Pilih jenis nilai yang akan dicatat.
                     const Text(
-                      'Pilih Jenis Nilai Yang Diinput:',
+                      'Jenis Penilaian:',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 4,
-                        horizontal: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: CheckboxListTile(
-                              title: const Text(
-                                'Tugas',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              value: _jenisNilaiTerpilih == 'tugas',
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: EdgeInsets.zero,
-                              onChanged: (bool? checked) {
-                                if (checked == true) {
-                                  setState(() => _jenisNilaiTerpilih = 'tugas');
-                                }
-                              },
-                            ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        for (final option in const [
+                          ('harian', 'Harian'),
+                          ('uts', 'UTS'),
+                          ('uas', 'UAS'),
+                        ])
+                          ChoiceChip(
+                            label: Text(option.$2),
+                            selected: _jenisNilaiTerpilih == option.$1,
+                            onSelected: (_) =>
+                                setState(() => _jenisNilaiTerpilih = option.$1),
                           ),
-                          Expanded(
-                            child: CheckboxListTile(
-                              title: const Text(
-                                'UTS',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              value: _jenisNilaiTerpilih == 'uts',
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: EdgeInsets.zero,
-                              onChanged: (bool? checked) {
-                                if (checked == true) {
-                                  setState(() => _jenisNilaiTerpilih = 'uts');
-                                }
-                              },
-                            ),
-                          ),
-                          Expanded(
-                            child: CheckboxListTile(
-                              title: const Text(
-                                'UAS',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              value: _jenisNilaiTerpilih == 'uas',
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: EdgeInsets.zero,
-                              onChanged: (bool? checked) {
-                                if (checked == true) {
-                                  setState(() => _jenisNilaiTerpilih = 'uas');
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
+                      ],
                     ),
+                    if (_jenisNilaiTerpilih == 'harian') ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _namaPenilaianController,
+                        maxLength: 100,
+                        decoration: const InputDecoration(
+                          labelText: 'Nama penilaian harian',
+                          hintText: 'Contoh: Kuis Bab 1',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.edit_note_rounded),
+                        ),
+                        validator: (value) {
+                          if (_jenisNilaiTerpilih != 'harian') return null;
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nama penilaian wajib diisi';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _pilihTanggalPenilaian,
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        label: Text(
+                          'Tanggal: ${_formatTanggal(_tanggalPenilaian)}',
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _skorNilaiController,

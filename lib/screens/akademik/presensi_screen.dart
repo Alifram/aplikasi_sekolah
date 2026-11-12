@@ -440,13 +440,21 @@ class _PresensiScreenState extends State<PresensiScreen> {
   Widget _buildFormPresensi() {
     return Column(
       children: [
-        _buildBanner(
-          title: 'Presensi Kelas',
-          subtitle: '$_kelasNama • Catat kehadiran hari ini',
-          icon: Icons.fact_check_rounded,
+        Flexible(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildBanner(
+                  title: 'Presensi Kelas',
+                  subtitle: '$_kelasNama • Catat kehadiran hari ini',
+                  icon: Icons.fact_check_rounded,
+                ),
+                _buildFilterPanel(allowClassSelection: false),
+                _buildStatusSummary(),
+              ],
+            ),
+          ),
         ),
-        _buildFilterPanel(allowClassSelection: false),
-        _buildStatusSummary(),
         Expanded(
           child: _siswa.isEmpty
               ? Center(
@@ -814,15 +822,23 @@ class _PresensiScreenState extends State<PresensiScreen> {
     final filtered = _riwayat;
     return Column(
       children: [
-        _buildBanner(
-          title: 'Riwayat Presensi',
-          subtitle: _isAdmin
-              ? 'Pantau kehadiran seluruh kelas'
-              : 'Catatan kehadiran Anda',
-          icon: Icons.fact_check_outlined,
+        Flexible(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildBanner(
+                  title: 'Riwayat Presensi',
+                  subtitle: _isAdmin
+                      ? 'Pantau kehadiran seluruh kelas'
+                      : 'Catatan kehadiran Anda',
+                  icon: Icons.fact_check_outlined,
+                ),
+                _buildFilterPanel(allowClassSelection: _isAdmin),
+                _buildStatusSummary(),
+              ],
+            ),
+          ),
         ),
-        _buildFilterPanel(allowClassSelection: _isAdmin),
-        _buildStatusSummary(),
         Expanded(
           child: filtered.isEmpty
               ? Center(

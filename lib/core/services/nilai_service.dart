@@ -42,7 +42,8 @@ class NilaiService {
         'status': 'error',
         'message': AppErrorMessage.fromPostgrest(
           error,
-          fallback: 'Penugasan mata pelajaran belum dapat dimuat. Silakan coba lagi.',
+          fallback:
+              'Penugasan mata pelajaran belum dapat dimuat. Silakan coba lagi.',
         ),
       };
     } catch (error) {
@@ -50,7 +51,8 @@ class NilaiService {
         'status': 'error',
         'message': AppErrorMessage.from(
           error,
-          fallback: 'Penugasan mata pelajaran belum dapat dimuat. Silakan coba lagi.',
+          fallback:
+              'Penugasan mata pelajaran belum dapat dimuat. Silakan coba lagi.',
         ),
       };
     }
@@ -87,18 +89,36 @@ class NilaiService {
   ) async {
     try {
       final score = num.tryParse(dataNilai['skor_nilai']?.toString() ?? '');
+      final isDailyGrade = dataNilai['jenis_nilai']?.toString() == 'harian';
       final response = await Supabase.instance.client.rpc(
-        'save_legacy_grade',
-        params: {
-          'p_siswa_id': int.tryParse(dataNilai['siswa_id']?.toString() ?? ''),
-          'p_kelas_mapel_id': int.tryParse(
-            dataNilai['kelas_mapel_id']?.toString() ?? '',
-          ),
-          'p_semester': dataNilai['semester']?.toString(),
-          'p_jenis_nilai': dataNilai['jenis_nilai']?.toString(),
-          'p_skor_nilai': score,
-          'p_keterangan': dataNilai['keterangan']?.toString(),
-        },
+        isDailyGrade ? 'save_daily_assessment_grade' : 'save_legacy_grade',
+        params: isDailyGrade
+            ? {
+                'p_siswa_id': int.tryParse(
+                  dataNilai['siswa_id']?.toString() ?? '',
+                ),
+                'p_kelas_mapel_id': int.tryParse(
+                  dataNilai['kelas_mapel_id']?.toString() ?? '',
+                ),
+                'p_semester': dataNilai['semester']?.toString(),
+                'p_nama_penilaian': dataNilai['nama_penilaian']?.toString(),
+                'p_tanggal_penilaian': dataNilai['tanggal_penilaian']
+                    ?.toString(),
+                'p_skor_nilai': score,
+                'p_keterangan': dataNilai['keterangan']?.toString(),
+              }
+            : {
+                'p_siswa_id': int.tryParse(
+                  dataNilai['siswa_id']?.toString() ?? '',
+                ),
+                'p_kelas_mapel_id': int.tryParse(
+                  dataNilai['kelas_mapel_id']?.toString() ?? '',
+                ),
+                'p_semester': dataNilai['semester']?.toString(),
+                'p_jenis_nilai': dataNilai['jenis_nilai']?.toString(),
+                'p_skor_nilai': score,
+                'p_keterangan': dataNilai['keterangan']?.toString(),
+              },
       );
       if (response is! Map || response['status'] != 'success') {
         return {

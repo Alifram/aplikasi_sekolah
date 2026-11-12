@@ -106,7 +106,6 @@ class _EventScreenState extends State<EventScreen> {
     });
   }
 
-
   // Fungsi kamera HP tetap berada di file UI karena urusan hardware tampilan
   Future<void> _pilihSumberFoto(ImageSource source) async {
     try {
@@ -149,8 +148,8 @@ class _EventScreenState extends State<EventScreen> {
           (fileName.endsWith('.png')
               ? 'image/png'
               : fileName.endsWith('.webp')
-                  ? 'image/webp'
-                  : 'image/jpeg');
+              ? 'image/webp'
+              : 'image/jpeg');
       final extension = switch (mimeType) {
         'image/png' => 'png',
         'image/webp' => 'webp',
@@ -179,7 +178,9 @@ class _EventScreenState extends State<EventScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(upload['message']?.toString() ?? 'Gagal mengunggah gambar.'),
+            content: Text(
+              upload['message']?.toString() ?? 'Gagal mengunggah gambar.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -217,10 +218,13 @@ class _EventScreenState extends State<EventScreen> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text([
-            res['message']?.toString() ?? 'Gagal menambahkan acara',
-            if (cleanupError != null) 'Gagal membersihkan gambar: $cleanupError',
-          ].join(' ')),
+          content: Text(
+            [
+              res['message']?.toString() ?? 'Gagal menambahkan acara',
+              if (cleanupError != null)
+                'Gagal membersihkan gambar: $cleanupError',
+            ].join(' '),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -232,9 +236,9 @@ class _EventScreenState extends State<EventScreen> {
     setState(() => _isLoading = true);
 
     final event = _listEvents.cast<Map>().firstWhere(
-          (item) => item['id'].toString() == eventId,
-          orElse: () => const {},
-        );
+      (item) => item['id'].toString() == eventId,
+      orElse: () => const {},
+    );
     final imagePath = event['gambar_url']?.toString();
     final res = await InformasiService.hapusAcara(
       eventId: eventId,
@@ -246,7 +250,9 @@ class _EventScreenState extends State<EventScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(res['message'] ?? 'Proses selesai'),
-        backgroundColor: res['status'] == 'success' ? AppColors.primary : Colors.red,
+        backgroundColor: res['status'] == 'success'
+            ? AppColors.primary
+            : Colors.red,
       ),
     );
 
@@ -256,6 +262,7 @@ class _EventScreenState extends State<EventScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
   void _bukaDialogTambahAcara() {
     showModalBottomSheet(
       context: context,
@@ -294,7 +301,8 @@ class _EventScreenState extends State<EventScreen> {
                         labelText: 'Judul Utama Kegiatan',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
+                      validator: (value) =>
+                          value!.isEmpty ? 'Wajib diisi' : null,
                     ),
                     const SizedBox(height: 16),
                     CheckboxListTile(
@@ -337,7 +345,8 @@ class _EventScreenState extends State<EventScreen> {
                         labelText: 'Deskripsi Suasana & Informasi',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
+                      validator: (value) =>
+                          value!.isEmpty ? 'Wajib diisi' : null,
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -347,6 +356,7 @@ class _EventScreenState extends State<EventScreen> {
                           label: const Text('Kamera'),
                           onPressed: () async {
                             await _pilihSumberFoto(ImageSource.camera);
+                            if (!context.mounted) return;
                             setModalState(() {});
                           },
                         ),
@@ -356,6 +366,7 @@ class _EventScreenState extends State<EventScreen> {
                           label: const Text('Galeri'),
                           onPressed: () async {
                             await _pilihSumberFoto(ImageSource.gallery);
+                            if (!context.mounted) return;
                             setModalState(() {});
                           },
                         ),
@@ -372,7 +383,8 @@ class _EventScreenState extends State<EventScreen> {
                           image: DecorationImage(
                             image: kIsWeb
                                 ? NetworkImage(_imageFile!.path)
-                                : FileImage(File(_imageFile!.path)) as ImageProvider,
+                                : FileImage(File(_imageFile!.path))
+                                      as ImageProvider,
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -405,7 +417,7 @@ class _EventScreenState extends State<EventScreen> {
     );
   }
 
-    // LOGIKA DINAMIS: Menyaring pengumuman agar otomatis melekat pada ruang kelas fiskal
+  // LOGIKA DINAMIS: Menyaring pengumuman agar otomatis melekat pada ruang kelas fiskal
   void _jalankanFilterBeritaSekolah(List<dynamic> semuaBerita) {
     // Jika yang login adalah ADMIN, bypass saringan agar bisa memantau semua berita
     if (widget.roleUser.toLowerCase().trim() == 'admin') {
@@ -420,9 +432,7 @@ class _EventScreenState extends State<EventScreen> {
       if (currentClassId == null) return false;
       final rawIds = ev['target_kelas_ids'];
       if (rawIds is! List) return false;
-      return rawIds.any(
-        (id) => int.tryParse(id.toString()) == currentClassId,
-      );
+      return rawIds.any((id) => int.tryParse(id.toString()) == currentClassId);
     }).toList();
   }
 
@@ -447,275 +457,212 @@ class _EventScreenState extends State<EventScreen> {
     return label.isEmpty ? 'Semua Kelas' : label;
   }
 
-  // LOGIKA TA AMAN: Panggilan HTTP dikontrol agar tidak memicu infinite loop saat modal di-rebuild
   void _bukaKolomKomentar(String eventId) {
-    final TextEditingController komentarController = TextEditingController();
-    List<dynamic> listKomentar = [];
-    bool isKomentarLoading = true;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            
-            // Mengambil komentar secara aman (Hanya berjalan saat status loading bernilai true)
-            if (isKomentarLoading) {
-              InformasiService.ambilKomentar(eventId).then((res) {
-                if (res['status'] == 'success') {
-                  setModalState(() {
-                    listKomentar = res['data'] ?? [];
-                    isKomentarLoading = false;
-                  });
-                } else {
-                  setModalState(() => isKomentarLoading = false);
-                }
-              });
-            }
-
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 20,
-                right: 20,
-                top: 20,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Kolom Diskusi & Komentar',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.3,
-                    ),
-                    child: isKomentarLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.primary,
-                            ),
-                          )
-                        : listKomentar.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'Belum ada opini. Jadilah yang pertama berkomentar!',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                                ),
-                              )
-                            : ListView.builder(
-                                itemCount: listKomentar.length,
-                                itemBuilder: (context, idx) {
-                                  final item = listKomentar[idx];
-                                  return ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: CircleAvatar(
-                                      backgroundColor: item['role_pengirim'] == 'admin'
-                                          ? Colors.purple.shade50
-                                          : Colors.green.shade50,
-                                      child: Text(
-                                        item['role_pengirim']
-                                            .toString()
-                                            .substring(0, 1)
-                                            .toUpperCase(),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      item['nama_pengirim'] ?? 'Anonim',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      item['isi_komentar'] ?? '',
-                                      style: const TextStyle(
-                                        color: Colors.black87,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                  ),
-                  const Divider(),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: komentarController,
-                          decoration: const InputDecoration(
-                            hintText: 'Tulis komentar Anda...',
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.send, color: AppColors.primary),
-                        onPressed: () async {
-                          if (komentarController.text.trim().isEmpty) return;
-                          
-                          final dataKomentar = {
-                            "event_id": eventId,
-                            "user_id": widget.userId,
-                            "nama_pengirim": widget.namaUser,
-                            "role_pengirim": widget.roleUser,
-                            "isi_komentar": komentarController.text.trim(),
-                          };
-
-                          final res = await InformasiService.kirimKomentar(dataKomentar);
-                          if (!context.mounted) return;
-                          if (res['status'] == 'success') {
-                            komentarController.clear();
-                            setModalState(() {
-                              isKomentarLoading = true;
-                            });
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(res['message'] ?? 'Gagal mengirim komentar.'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ).then((_) => komentarController.dispose()); // Membersihkan kontroler memori saat modal ditutup
+      builder: (_) => _KolomKomentarSheet(
+        eventId: eventId,
+        userId: widget.userId,
+        namaUser: widget.namaUser,
+        roleUser: widget.roleUser,
+      ),
+    );
   }
+
   @override
   Widget build(BuildContext context) {
-    bool bolehTambahAcara = widget.roleUser == 'admin' || widget.roleUser == 'guru';
+    bool bolehTambahAcara =
+        widget.roleUser == 'admin' || widget.roleUser == 'guru';
 
     return Scaffold(
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : _eventError != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.cloud_off_rounded,
-                          size: 48,
-                          color: Colors.redAccent,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _eventError!,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _panggilDataAcara,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Coba lagi'),
-                        ),
-                      ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.cloud_off_rounded,
+                      size: 48,
+                      color: Colors.redAccent,
                     ),
-                  ),
-                )
+                    const SizedBox(height: 12),
+                    Text(_eventError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _panggilDataAcara,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            )
           : _listEvents.isEmpty
-              ? const Center(child: Text('Belum ada postingan kegiatan sekolah.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: _listEvents.length,
-                  itemBuilder: (context, index) {
-                    final item = _listEvents[index];
-                    bool bolehHapus = widget.roleUser == 'admin' || 
-                        (widget.roleUser == 'guru' && item['dibuat_oleh'] == widget.namaUser);
+          ? const Center(child: Text('Belum ada postingan kegiatan sekolah.'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(20),
+              itemCount: _listEvents.length,
+              itemBuilder: (context, index) {
+                final item = _listEvents[index];
+                bool bolehHapus =
+                    widget.roleUser == 'admin' ||
+                    (widget.roleUser == 'guru' &&
+                        item['dibuat_oleh'] == widget.namaUser);
 
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      elevation: 1.5,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (item['gambar_signed_url'] != null)
-                            Image.network(
-                              item['gambar_signed_url'].toString(),
-                              height: 220,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const SizedBox(),
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  elevation: 1.5,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (item['gambar_signed_url'] != null)
+                        Image.network(
+                          item['gambar_signed_url'].toString(),
+                          height: 220,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox(),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.shade50,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        _labelTargetKelas(item),
+                                        style: TextStyle(
+                                          color: Colors.blue.shade800,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
                                     Row(
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                                          child: Text(
-                                            _labelTargetKelas(item),
-                                            style: TextStyle(color: Colors.blue.shade800, fontWeight: FontWeight.bold, fontSize: 11),
-                                          ),
+                                        const Icon(
+                                          Icons.calendar_month,
+                                          size: 14,
+                                          color: Colors.grey,
                                         ),
-                                        const SizedBox(width: 10),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.calendar_month, size: 14, color: Colors.grey),
-                                            const SizedBox(width: 4),
-                                            Text(item['tanggal_acara'] ?? '-', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                                          ],
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          item['tanggal_acara'] ?? '-',
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 12,
+                                          ),
                                         ),
                                       ],
                                     ),
-                                    if (bolehHapus)
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_sweep, color: Colors.red, size: 20),
-                                        onPressed: () => _hapusPostinganAcara(item['id'].toString()),
-                                      ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
-                                Text(item['judul_acara'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                                const SizedBox(height: 6),
-                                Text(item['deskripsi'] ?? '-', style: const TextStyle(color: Colors.black87, height: 1.4)),
-                                const Divider(height: 24),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Oleh: ${item['dibuat_oleh'] ?? '-'}', style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500)),
-                                    TextButton.icon(
-                                      icon: const Icon(Icons.mode_comment_outlined, size: 18, color: AppColors.primary),
-                                      label: const Text('Diskusi / Komentar', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
-                                      onPressed: () => _bukaKolomKomentar(item['id'].toString()),
+                                if (bolehHapus)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_sweep,
+                                      color: Colors.red,
+                                      size: 20,
                                     ),
-                                  ],
+                                    onPressed: () => _hapusPostinganAcara(
+                                      item['id'].toString(),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              item['judul_acara'] ?? '-',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              item['deskripsi'] ?? '-',
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                height: 1.4,
+                              ),
+                            ),
+                            const Divider(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Oleh: ${item['dibuat_oleh'] ?? '-'}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  icon: const Icon(
+                                    Icons.mode_comment_outlined,
+                                    size: 18,
+                                    color: AppColors.primary,
+                                  ),
+                                  label: const Text(
+                                    'Diskusi / Komentar',
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  onPressed: () =>
+                                      _bukaKolomKomentar(item['id'].toString()),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    );
-                  },
-                ),
+                    ],
+                  ),
+                );
+              },
+            ),
       floatingActionButton: bolehTambahAcara
           ? FloatingActionButton(
               backgroundColor: AppColors.primary,
@@ -723,6 +670,222 @@ class _EventScreenState extends State<EventScreen> {
               child: const Icon(Icons.add, color: Colors.white),
             )
           : null,
+    );
+  }
+}
+
+class _KolomKomentarSheet extends StatefulWidget {
+  final String eventId;
+  final String userId;
+  final String namaUser;
+  final String roleUser;
+
+  const _KolomKomentarSheet({
+    required this.eventId,
+    required this.userId,
+    required this.namaUser,
+    required this.roleUser,
+  });
+
+  @override
+  State<_KolomKomentarSheet> createState() => _KolomKomentarSheetState();
+}
+
+class _KolomKomentarSheetState extends State<_KolomKomentarSheet> {
+  final TextEditingController _komentarController = TextEditingController();
+  List<dynamic> _komentar = [];
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _muatKomentar();
+  }
+
+  @override
+  void dispose() {
+    _komentarController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _muatKomentar() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final response = await InformasiService.ambilKomentar(widget.eventId);
+    if (!mounted) return;
+    if (response['status'] == 'success' && response['data'] is List) {
+      setState(() {
+        _komentar = response['data'] as List;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _errorMessage =
+            response['message']?.toString() ?? 'Gagal memuat komentar.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _kirimKomentar() async {
+    final isiKomentar = _komentarController.text.trim();
+    if (isiKomentar.isEmpty || _isSubmitting) return;
+    setState(() => _isSubmitting = true);
+
+    final response = await InformasiService.kirimKomentar({
+      'event_id': widget.eventId,
+      'user_id': widget.userId,
+      'nama_pengirim': widget.namaUser,
+      'role_pengirim': widget.roleUser,
+      'isi_komentar': isiKomentar,
+    });
+    if (!mounted) return;
+
+    setState(() => _isSubmitting = false);
+    if (response['status'] == 'success') {
+      _komentarController.clear();
+      await _muatKomentar();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response['message']?.toString() ?? 'Gagal mengirim komentar.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+    final availableHeight = screenHeight - keyboardHeight - 40;
+    final maxSheetHeight = availableHeight
+        .clamp(0.0, screenHeight * 0.75)
+        .toDouble();
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+          left: 20,
+          right: 20,
+          top: 20,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxSheetHeight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Kolom Diskusi & Komentar',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : _errorMessage != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_errorMessage!, textAlign: TextAlign.center),
+                            TextButton.icon(
+                              onPressed: _muatKomentar,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Coba lagi'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _komentar.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Belum ada opini. Jadilah yang pertama berkomentar!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _komentar.length,
+                        itemBuilder: (context, index) {
+                          final item = Map<String, dynamic>.from(
+                            _komentar[index] as Map,
+                          );
+                          final role = item['role_pengirim']?.toString() ?? '';
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(
+                              backgroundColor: role == 'admin'
+                                  ? Colors.purple.shade50
+                                  : Colors.green.shade50,
+                              child: Text(
+                                role.isEmpty ? '?' : role[0].toUpperCase(),
+                              ),
+                            ),
+                            title: Text(
+                              item['nama_pengirim']?.toString() ?? 'Anonim',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            subtitle: Text(
+                              item['isi_komentar']?.toString() ?? '',
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 13,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              const Divider(),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _komentarController,
+                      enabled: !_isSubmitting,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _kirimKomentar(),
+                      decoration: const InputDecoration(
+                        hintText: 'Tulis komentar Anda...',
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Kirim komentar',
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send, color: AppColors.primary),
+                    onPressed: _isSubmitting ? null : _kirimKomentar,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

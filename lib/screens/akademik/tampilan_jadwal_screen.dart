@@ -247,45 +247,50 @@ class _TampilanJadwalScreenState extends State<TampilanJadwalScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // LEFT PANEL INDIKATOR SLOT WAKTU DUA LINE
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    jamMulai,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: warnaTeksUtama,
-                                    ),
-                                  ),
-                                  Text(
-                                    's/d $jamSelesai',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: warnaTeksMuted,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.teal.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      jd['ruangan'] ?? 'Kelas',
-                                      style: const TextStyle(
-                                        fontSize: 10,
+                              SizedBox(
+                                width: 72,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      jamMulai,
+                                      style: TextStyle(
+                                        fontSize: 16,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.teal,
+                                        color: warnaTeksUtama,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    Text(
+                                      's/d $jamSelesai',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: warnaTeksMuted,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.teal.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        jd['ruangan'] ?? 'Kelas',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.teal,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                               const SizedBox(width: 16),
 

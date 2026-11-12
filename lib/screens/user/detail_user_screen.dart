@@ -153,12 +153,15 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
     final Color warnaInputBackground = isDark ? const Color(0xFF202C33) : Colors.grey.shade50;
     final Color warnaBorderActive = isDark ? Colors.amber.shade400 : AppColors.primary;
     final Color warnaIkonSeksi = isDark ? Colors.amber.shade400 : AppColors.primary;
+    BuildContext? editDialogContext;
 
     Future<void> _prosesKirimKeDatabase() async {
+      final namaLengkap = _namaController.text.trim();
+      final email = _emailController.text.trim();
       final paketUpdateGlobal = {
         "id_user": user['id'].toString(),
-        "nama_lengkap": _namaController.text.trim(),
-        "email": _emailController.text.trim(),
+        "nama_lengkap": namaLengkap,
+        "email": email,
         "role": user['role'],
         "kelas_id": kelasTerpilihId,
         "tahun_angkatan": int.tryParse(tahunAngkatanTerpilih),
@@ -168,7 +171,10 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
       final res = await AdminService.perbaruiDataPengguna(paketUpdateGlobal);
       
       if (!mounted) return;
-      Navigator.pop(context); // Tutup dialog utama edit informasi akun
+      final dialogContext = editDialogContext;
+      if (dialogContext?.mounted == true) {
+        Navigator.of(dialogContext!).pop();
+      }
 
       if (res['status'] == 'success') {
         setState(() {
@@ -177,8 +183,8 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
               int.tryParse(item['id'].toString()) == kelasTerpilihId);
           _currentKelas =
               matchingClass.isEmpty ? 'Belum Diatur' : matchingClass.first['nama'].toString();
-          user['nama_lengkap'] = _namaController.text.trim();
-          user['email'] = _emailController.text.trim();
+          user['nama_lengkap'] = namaLengkap;
+          user['email'] = email;
           user['kelas_id'] = kelasTerpilihId;
           user['kelas_nama'] = _currentKelas;
           if (user['role'] == 'siswa') {
@@ -206,6 +212,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
+        editDialogContext = context;
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             return AlertDialog(
@@ -434,7 +441,11 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      _namaController.dispose();
+      _emailController.dispose();
+      _passBaruController.dispose();
+    });
   }
 
   void _konfirmasiUbahStatusAkses(BuildContext context) {
@@ -465,7 +476,7 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                 targetStatus
               );
 
-              if (!mounted) return;
+              if (!mounted || !context.mounted) return;
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -578,9 +589,18 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                           ),
 
                           const SizedBox(height: 4),
-                          Row(
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              const Text('Status Akses: ', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                              const Text(
+                                'Status Akses: ',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 13,
+                                ),
+                              ),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(

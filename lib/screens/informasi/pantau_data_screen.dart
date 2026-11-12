@@ -204,10 +204,15 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
           ),
           const SizedBox(height: 12),
           
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Row(
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
                 children: [
                   _buildFilterChip('semua', 'Semua', isDark),
                   const SizedBox(width: 6),

@@ -69,37 +69,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 },
                 itemCount: _onboardingData.length,
                 itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _onboardingData[index]['icon']!,
-                          style: const TextStyle(fontSize: 100),
-                        ),
-                        const SizedBox(height: 40),
-                        Text(
-                          _onboardingData[index]['title']!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary, // Menggunakan tema global
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 40,
+                              vertical: 24,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _onboardingData[index]['icon']!,
+                                  style: const TextStyle(fontSize: 100),
+                                ),
+                                const SizedBox(height: 40),
+                                Text(
+                                  _onboardingData[index]['title']!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary, // Menggunakan tema global
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  _onboardingData[index]['description']!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Text(
-                          _onboardingData[index]['description']!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -108,8 +122,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             // Bagian Bawah: Indikator Titik & Tombol Navigasi
             Padding(
               padding: const EdgeInsets.all(30.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   // Indikator Titik (Dot Indicator)
                   Row(
