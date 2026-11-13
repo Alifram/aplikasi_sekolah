@@ -18,6 +18,7 @@ import '../akademik/presensi_screen.dart';
 import '../informasi/event_screen.dart';
 import '../informasi/pantau_data_screen.dart';
 import '../auth/register_form_screen.dart';
+import '../payment/payment_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String role;
@@ -83,6 +84,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   bool get _supportsScheduleAlarm =>
       widget.role == 'guru' || widget.role == 'siswa';
+
+  bool get _isPaymentRole =>
+      widget.role == 'orang_tua' || widget.role == 'petugas_keuangan';
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -369,14 +373,16 @@ class _DashboardScreenState extends State<DashboardScreen>
         ? Colors.white70
         : Colors.black54;
     final Color warnaPinggiran = widget.statusTemaGelap
-        ? Colors.grey.shade800
+        ? Colors.grey.shade700
         : Colors.grey.shade200;
 
     return Container(
       color: warnaLatarBelakang,
       child: RefreshIndicator(
         onRefresh: _panggilDataAwal,
-        color: AppColors.primary,
+        color: widget.statusTemaGelap
+            ? Colors.amber.shade300
+            : AppColors.primary,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20.0),
@@ -462,8 +468,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 const SizedBox(height: 12),
                 if (_isAdminSummaryLoading)
-                  const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
+                  Center(
+                    child: CircularProgressIndicator(
+                      color: widget.statusTemaGelap
+                          ? Colors.amber.shade300
+                          : AppColors.primary,
+                    ),
                   )
                 else if (_adminSummaryError != null)
                   Container(
@@ -502,7 +512,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         'Siswa',
                         _totalSiswa,
                         Icons.school_rounded,
-                        Colors.blue,
+                        widget.statusTemaGelap
+                            ? Colors.lightBlue.shade200
+                            : Colors.blue,
                         warnaKotakKartu,
                         warnaTeksUtama,
                         warnaPinggiran,
@@ -511,7 +523,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         'Guru',
                         _totalGuru,
                         Icons.person_rounded,
-                        Colors.deepPurple,
+                        widget.statusTemaGelap
+                            ? Colors.deepPurple.shade200
+                            : Colors.deepPurple,
                         warnaKotakKartu,
                         warnaTeksUtama,
                         warnaPinggiran,
@@ -520,7 +534,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         'Kelas Aktif',
                         _totalKelas,
                         Icons.meeting_room_rounded,
-                        Colors.teal,
+                        widget.statusTemaGelap
+                            ? Colors.tealAccent.shade100
+                            : Colors.teal,
                         warnaKotakKartu,
                         warnaTeksUtama,
                         warnaPinggiran,
@@ -529,7 +545,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         'Pengumuman',
                         _totalPengumuman,
                         Icons.campaign_rounded,
-                        Colors.amber.shade800,
+                        widget.statusTemaGelap
+                            ? Colors.amber.shade300
+                            : Colors.amber.shade800,
                         warnaKotakKartu,
                         warnaTeksUtama,
                         warnaPinggiran,
@@ -573,7 +591,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildItemMenuBulat(
                           'Registrasi',
                           Icons.person_add_alt_1_rounded,
-                          Colors.red,
+                          widget.statusTemaGelap
+                              ? Colors.red.shade300
+                              : Colors.red,
                           () {
                             setState(() => _currentIndex = 2);
                           },
@@ -583,7 +603,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildItemMenuBulat(
                           'Data Kelas',
                           Icons.grid_view_rounded,
-                          Colors.blue,
+                          widget.statusTemaGelap
+                              ? Colors.lightBlue.shade200
+                              : Colors.blue,
                           () {
                             Navigator.push(
                               context,
@@ -599,7 +621,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildItemMenuBulat(
                           'Statistik',
                           Icons.bar_chart_rounded,
-                          Colors.green,
+                          widget.statusTemaGelap
+                              ? Colors.lightGreen.shade300
+                              : Colors.green,
                           () {
                             setState(() => _currentIndex = 1);
                           },
@@ -609,7 +633,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildItemMenuBulat(
                           'Buat Event',
                           Icons.campaign_rounded,
-                          Colors.amber.shade800,
+                          widget.statusTemaGelap
+                              ? Colors.amber.shade300
+                              : Colors.amber.shade800,
                           () {
                             setState(() => _currentIndex = 3);
                           },
@@ -620,7 +646,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildItemMenuBulat(
                           'Jadwal',
                           Icons.edit_calendar_rounded,
-                          Colors.teal,
+                          widget.statusTemaGelap
+                              ? Colors.tealAccent.shade100
+                              : Colors.teal,
                           () {
                             Navigator.push(
                               context,
@@ -637,7 +665,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildItemMenuBulat(
                           'Penugasan Mapel',
                           Icons.menu_book_rounded,
-                          Colors.deepPurple,
+                          widget.statusTemaGelap
+                              ? Colors.deepPurple.shade200
+                              : Colors.deepPurple,
                           () {
                             Navigator.push(
                               context,
@@ -653,7 +683,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildItemMenuBulat(
                           'Mata Pelajaran',
                           Icons.library_books_rounded,
-                          Colors.indigo,
+                          widget.statusTemaGelap
+                              ? Colors.indigo.shade200
+                              : Colors.indigo,
                           () {
                             Navigator.push(
                               context,
@@ -671,7 +703,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _buildItemMenuBulat(
                           'Presensi',
                           Icons.fact_check_rounded,
-                          Colors.blue,
+                          widget.statusTemaGelap
+                              ? Colors.lightBlue.shade200
+                              : Colors.blue,
                           _bukaPresensi,
                           warnaKotakKartu,
                           warnaTeksUtama,
@@ -779,6 +813,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                           warnaTeksUtama,
                         ),
                       ],
+
+                      if (_isPaymentRole)
+                        _buildItemMenuBulat(
+                          'Pembayaran',
+                          Icons.receipt_long_rounded,
+                          Colors.teal,
+                          () => setState(() => _currentIndex = 1),
+                          warnaKotakKartu,
+                          warnaTeksUtama,
+                        ),
                     ],
                   );
                 },
@@ -803,12 +847,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const SizedBox(width: 8),
                   InkWell(
                     onTap: () => setState(() => _currentIndex = 3),
-                    child: const Text(
+                    child: Text(
                       'Lihat Semua',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                        color: widget.statusTemaGelap
+                            ? Colors.lightBlue.shade200
+                            : Colors.blue,
                       ),
                     ),
                   ),
@@ -817,8 +863,12 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(height: 16),
 
               if (_isEventsLoading)
-                const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
+                Center(
+                  child: CircularProgressIndicator(
+                    color: widget.statusTemaGelap
+                        ? Colors.amber.shade300
+                        : AppColors.primary,
+                  ),
                 )
               else if (_listEvents.isEmpty)
                 Container(
@@ -869,7 +919,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 child: Container(
                                   width: double.infinity,
                                   decoration: BoxDecoration(
-                                    color: Colors.grey.shade300,
+                                    color: widget.statusTemaGelap
+                                        ? const Color(0xFF34434B)
+                                        : Colors.grey.shade300,
                                     image:
                                         ev['gambar_signed_url'] != null &&
                                             ev['gambar_signed_url']
@@ -978,10 +1030,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         ? Colors.white70
         : Colors.black54;
     final Color warnaTeksMuted = widget.statusTemaGelap
-        ? Colors.grey.shade400
+        ? Colors.white70
         : Colors.grey;
     final Color warnaPinggiran = widget.statusTemaGelap
-        ? Colors.grey.shade800
+        ? Colors.grey.shade700
         : Colors.grey.shade200;
     final Color warnaLatarDropdown = widget.statusTemaGelap
         ? const Color(0xFF182229)
@@ -1079,8 +1131,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           const SizedBox(height: 20),
           if (_isStatistikLoading)
-            const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
+            Center(
+              child: CircularProgressIndicator(
+                color: widget.statusTemaGelap
+                    ? Colors.amber.shade300
+                    : AppColors.primary,
+              ),
             )
           else
             ListView.builder(
@@ -1110,6 +1166,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () {
+                      if (widget.role != 'admin') {
+                        showPantauDataAccessDeniedDialog(
+                          context,
+                          isDark: widget.statusTemaGelap,
+                        );
+                        return;
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1144,24 +1207,34 @@ class _DashboardScreenState extends State<DashboardScreen>
                                       isNaik
                                           ? Icons.trending_up
                                           : Icons.trending_down,
-                                      color: isNaik ? Colors.green : Colors.red,
+                                      color: isNaik
+                                          ? (widget.statusTemaGelap
+                                                ? Colors.lightGreen.shade300
+                                                : Colors.green)
+                                          : (widget.statusTemaGelap
+                                                ? Colors.red.shade300
+                                                : Colors.red),
                                       size: 16,
                                     ),
                                     Text(
                                       ' ${isNaik ? 'Naik' : 'Turun'} ${selisih.toStringAsFixed(1)}',
                                       style: TextStyle(
                                         color: isNaik
-                                            ? Colors.green
-                                            : Colors.red,
+                                            ? (widget.statusTemaGelap
+                                                  ? Colors.lightGreen.shade300
+                                                  : Colors.green)
+                                            : (widget.statusTemaGelap
+                                                  ? Colors.red.shade300
+                                                  : Colors.red),
                                         fontWeight: FontWeight.bold,
                                         fontSize: 12,
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    const Icon(
+                                    Icon(
                                       Icons.chevron_right_rounded,
                                       size: 16,
-                                      color: Colors.grey,
+                                      color: warnaTeksMuted,
                                     ),
                                   ],
                                 )
@@ -1177,10 +1250,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    const Icon(
+                                    Icon(
                                       Icons.chevron_right_rounded,
                                       size: 16,
-                                      color: Colors.grey,
+                                      color: warnaTeksMuted,
                                     ),
                                   ],
                                 ),
@@ -1197,7 +1270,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                           _buildGrafikBarDinamis(
                             "Semester 2",
                             sem2,
-                            AppColors.primary,
+                            widget.statusTemaGelap
+                                ? Colors.lightGreen.shade300
+                                : AppColors.primary,
                             warnaTeksSub,
                           ),
                         ],
@@ -1273,7 +1348,10 @@ class _DashboardScreenState extends State<DashboardScreen>
           children: [
             Text(
               label,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 12,
+                color: widget.statusTemaGelap ? Colors.white70 : Colors.grey,
+              ),
             ),
             Text(
               nilai.toStringAsFixed(1),
@@ -1550,7 +1628,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: TextStyle(
                         fontSize: 12,
                         color: widget.statusTemaGelap
-                            ? Colors.white60
+                            ? Colors.white70
                             : Colors.black54,
                       ),
                     ),
@@ -1575,7 +1653,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     trailing: Icon(
                       Icons.chevron_right_rounded,
                       color: widget.statusTemaGelap
-                          ? Colors.white60
+                          ? Colors.white70
                           : Colors.grey,
                     ),
                     onTap: _tampilkanDialogGantiPassword,
@@ -1591,22 +1669,31 @@ class _DashboardScreenState extends State<DashboardScreen>
               height: 48,
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red, width: 1.5),
+                  side: BorderSide(
+                    color: widget.statusTemaGelap
+                        ? Colors.red.shade300
+                        : Colors.red,
+                    width: 1.5,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                   backgroundColor: widget.statusTemaGelap
-                      ? Colors.red.withOpacity(0.05)
+                      ? Colors.red.withOpacity(0.12)
                       : Colors.transparent,
                 ),
-                icon: const Icon(
+                icon: Icon(
                   Icons.power_settings_new_rounded,
-                  color: Colors.red,
+                  color: widget.statusTemaGelap
+                      ? Colors.red.shade300
+                      : Colors.red,
                 ),
-                label: const Text(
+                label: Text(
                   'KELUAR APLIKASI (LOGOUT)',
                   style: TextStyle(
-                    color: Colors.red,
+                    color: widget.statusTemaGelap
+                        ? Colors.red.shade300
+                        : Colors.red,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -1628,7 +1715,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 'Sistem Rapor Digital MIM Pasir Lor\nVersi 2.0.0 (Production Release)',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: widget.statusTemaGelap ? Colors.white38 : Colors.grey,
+                  color: widget.statusTemaGelap ? Colors.white70 : Colors.grey,
                   fontSize: 11,
                   height: 1.5,
                 ),
@@ -1641,6 +1728,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _dapatkanKontenHalaman() {
+    if (_isPaymentRole) {
+      return switch (_currentIndex) {
+        0 => _buildHalamanHomeUtama(),
+        1 => PaymentScreen(role: widget.role),
+        2 => _buildHalamanProfilLengkap(),
+        _ => _buildHalamanHomeUtama(),
+      };
+    }
+
     switch (_currentIndex) {
       case 0:
         return _buildHalamanHomeUtama();
@@ -1693,13 +1789,18 @@ class _DashboardScreenState extends State<DashboardScreen>
           : Colors.white,
       appBar:
           _currentIndex == 0 ||
+              (_isPaymentRole && _currentIndex == 2) ||
               (widget.role == 'siswa' &&
                   (_currentIndex == 1 || _currentIndex == 2))
           ? null
           : AppBar(
               title: Text(
                 _currentIndex == 1
-                    ? 'Statistik Akademik'
+                    ? (_isPaymentRole
+                          ? (widget.role == 'orang_tua'
+                                ? 'Infaq & Wakaf'
+                                : 'Pencatatan Pembayaran')
+                          : 'Statistik Akademik')
                     : _currentIndex == 2
                     ? (widget.role == 'admin'
                           ? 'Buat Akun Baru'
@@ -1742,39 +1843,54 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ? Colors.amber.shade400
                 : AppColors.primary,
             unselectedItemColor: widget.statusTemaGelap
-                ? Colors.white38
+                ? Colors.white70
                 : Colors.grey,
             selectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
             unselectedLabelStyle: const TextStyle(fontSize: 11),
-            items: [
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.home_rounded),
-                label: 'Home',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.bar_chart_rounded),
-                label: 'Statistik',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  widget.role == 'admin'
-                      ? Icons.person_add_rounded
-                      : Icons.assignment_rounded,
-                ),
-                label: widget.role == 'admin' ? 'Registrasi' : 'Akademik',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.notifications_rounded),
-                label: 'Info',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.account_circle_rounded),
-                label: 'Profil',
-              ),
-            ],
+            items: _isPaymentRole
+                ? const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home_rounded),
+                      label: 'Home',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.receipt_long_rounded),
+                      label: 'Pembayaran',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.account_circle_rounded),
+                      label: 'Profil',
+                    ),
+                  ]
+                : [
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.home_rounded),
+                      label: 'Home',
+                    ),
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.bar_chart_rounded),
+                      label: 'Statistik',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(
+                        widget.role == 'admin'
+                            ? Icons.person_add_rounded
+                            : Icons.assignment_rounded,
+                      ),
+                      label: widget.role == 'admin' ? 'Registrasi' : 'Akademik',
+                    ),
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.notifications_rounded),
+                      label: 'Info',
+                    ),
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.account_circle_rounded),
+                      label: 'Profil',
+                    ),
+                  ],
           ),
         ),
       ),
@@ -1821,7 +1937,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: textColor.withValues(alpha: 0.7),
+                    color: textColor.withValues(
+                      alpha: widget.statusTemaGelap ? 0.9 : 0.7,
+                    ),
                     fontSize: 11,
                   ),
                 ),
@@ -1842,6 +1960,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     Color bgKartu,
     Color txtUtama,
   ) {
+    final Color warnaIkon = widget.statusTemaGelap
+        ? Color.lerp(warnaLingkaran, Colors.white, 0.4)!
+        : warnaLingkaran;
     return Column(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1854,15 +1975,17 @@ class _DashboardScreenState extends State<DashboardScreen>
             height: 52,
             decoration: BoxDecoration(
               color: widget.statusTemaGelap
-                  ? warnaLingkaran.withOpacity(0.18)
+                  ? warnaIkon.withOpacity(0.22)
                   : warnaLingkaran.withOpacity(0.1),
               shape: BoxShape.circle,
               border: Border.all(
-                color: warnaLingkaran.withOpacity(0.3),
+                color: warnaIkon.withOpacity(
+                  widget.statusTemaGelap ? 0.65 : 0.3,
+                ),
                 width: 1,
               ),
             ),
-            child: Icon(ikon, color: warnaLingkaran, size: 26),
+            child: Icon(ikon, color: warnaIkon, size: 26),
           ),
         ),
         const SizedBox(height: 8),
@@ -2069,7 +2192,12 @@ class _GantiPasswordDialogState extends State<_GantiPasswordDialog> {
                   const SizedBox(height: 12),
                   Text(
                     _errorMessage!,
-                    style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                    style: TextStyle(
+                      color: widget.isDark
+                          ? Colors.red.shade300
+                          : Colors.red.shade700,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/auth_service.dart';
+import 'package:aplikasi_sekolah/core/services/admin_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aplikasi_sekolah/core/services/app_error_message.dart';
 
@@ -31,6 +32,20 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
   bool _isLoadingKelas = true;
   String? _kelasError;
   List<Map<String, dynamic>> _kelas = [];
+  bool _isLoadingSiswa = false;
+  String? _siswaError;
+  List<Map<String, dynamic>> _siswa = [];
+  final Set<int> _selectedStudentIds = {};
+  final Set<String> _selectedPaymentCategories = {};
+
+  static const _paymentCategories = {
+    'infaq': 'Infaq',
+    'wakaf': 'Wakaf',
+    'buku': 'Buku',
+    'pramuka': 'Pramuka',
+    'hw': 'HW',
+    'koperasi': 'Koperasi',
+  };
 
   // ===========================================================================
   // WIDGET STATE BARU: Pilihan awal Dropdown penempatan khusus Akun Siswa
@@ -54,6 +69,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
       _selectedRole = 'siswa';
     }
     _muatKelas();
+    if (widget.pembuatRole == 'admin') _muatSiswa();
   }
 
   @override
@@ -106,6 +122,38 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
     }
   }
 
+  Future<void> _muatSiswa() async {
+    setState(() {
+      _isLoadingSiswa = true;
+      _siswaError = null;
+    });
+    final response = await AdminService.ambilSemuaPengguna();
+    if (!mounted) return;
+    if (response['status'] != 'success' || response['data'] is! List) {
+      setState(() {
+        _isLoadingSiswa = false;
+        _siswaError =
+            response['message']?.toString() ??
+            'Daftar siswa belum dapat dimuat.';
+      });
+      return;
+    }
+
+    setState(() {
+      _siswa = (response['data'] as List)
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .where(
+            (item) =>
+                item['role'] == 'siswa' &&
+                (int.tryParse(item['is_deleted']?.toString() ?? '0') ?? 0) == 0,
+          )
+          .toList();
+      _isLoadingSiswa = false;
+      if (_siswa.isEmpty) _siswaError = 'Belum ada siswa aktif.';
+    });
+  }
+
   void _bersihkanFormulir() {
     _nomorIndukController.clear();
     _namaLengkapController.clear();
@@ -117,6 +165,8 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
           : int.tryParse(_kelas.first['id'].toString());
       _selectedAngkatanSiswa = DateTime.now().year.toString();
       _selectedJenisGuru = null;
+      _selectedStudentIds.clear();
+      _selectedPaymentCategories.clear();
     });
   }
 
@@ -128,6 +178,21 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
 
   Future<void> _kirimDataPendaftaran() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedRole == 'orang_tua' && _selectedStudentIds.isEmpty) {
+      _tampilkanNotifikasi(
+        'Pilih setidaknya satu anak untuk akun orang tua.',
+        Colors.red,
+      );
+      return;
+    }
+    if (_selectedRole == 'petugas_keuangan' &&
+        _selectedPaymentCategories.isEmpty) {
+      _tampilkanNotifikasi(
+        'Pilih setidaknya satu jenis pembayaran untuk petugas.',
+        Colors.red,
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -153,10 +218,36 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
     if (!mounted) return;
 
     if (res['status'] == 'success') {
-      _tampilkanNotifikasi(
-        res['message'] ?? 'Pendaftaran akun berhasil disimpan!',
-        AppColors.primary,
-      );
+      var message =
+          res['message']?.toString() ?? 'Pendaftaran akun berhasil disimpan!';
+      var messageColor = AppColors.primary;
+      if (_selectedRole == 'orang_tua' || _selectedRole == 'petugas_keuangan') {
+        final userId = int.tryParse(res['profile_id']?.toString() ?? '');
+        if (userId == null) {
+          message =
+              'Akun berhasil dibuat, tetapi ID profil tidak tersedia. '
+              'Periksa akun sebelum mencoba mendaftarkannya kembali.';
+          messageColor = Colors.orange.shade800;
+        } else {
+          final setup = await AdminService.konfigurasiAkunPembayaran(
+            userId: userId,
+            studentUserIds: _selectedRole == 'orang_tua'
+                ? _selectedStudentIds.toList()
+                : const [],
+            categoryCodes: _selectedRole == 'petugas_keuangan'
+                ? _selectedPaymentCategories.toList()
+                : const [],
+          );
+          if (setup['status'] != 'success') {
+            message =
+                'Akun berhasil dibuat, tetapi pengaturan akses belum selesai: '
+                '${setup['message'] ?? 'hubungi admin sistem.'}';
+            messageColor = Colors.orange.shade800;
+          }
+        }
+      }
+      _tampilkanNotifikasi(message, messageColor);
+      if (_selectedRole == 'siswa') await _muatSiswa();
       _bersihkanFormulir();
       await widget.onRegistrationSuccess?.call();
     } else {
@@ -223,16 +314,23 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                     prefixIcon: const Icon(Icons.people_outline),
                   ),
                   items: const [
-                    DropdownMenuItem(
-                      value: 'siswa',
-                      child: Text('Siswa / Orang Tua'),
-                    ),
+                    DropdownMenuItem(value: 'siswa', child: Text('Siswa')),
                     DropdownMenuItem(value: 'guru', child: Text('Guru')),
+                    DropdownMenuItem(
+                      value: 'orang_tua',
+                      child: Text('Orang Tua'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'petugas_keuangan',
+                      child: Text('Petugas Keuangan'),
+                    ),
                   ],
                   onChanged: (value) {
                     setState(() {
                       _selectedRole = value!;
                       _selectedJenisGuru = null;
+                      _selectedStudentIds.clear();
+                      _selectedPaymentCategories.clear();
                     });
                   },
                 ),
@@ -271,9 +369,12 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
               TextFormField(
                 controller: _nomorIndukController,
                 decoration: InputDecoration(
-                  labelText: _selectedRole == 'guru'
-                      ? 'NIP (Nomor Induk Pegawai)'
-                      : 'NIS (Nomor Induk Siswa)',
+                  labelText: switch (_selectedRole) {
+                    'guru' => 'NIP (Nomor Induk Pegawai)',
+                    'siswa' => 'NIS (Nomor Induk Siswa)',
+                    'orang_tua' => 'Nomor Identitas Orang Tua',
+                    _ => 'Nomor Identitas Petugas',
+                  },
                   prefixIcon: const Icon(Icons.pin_outlined),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -312,6 +413,89 @@ class _RegisterFormScreenState extends State<RegisterFormScreen> {
                     value!.isEmpty ? 'Email wajib diisi' : null,
               ),
               const SizedBox(height: 20),
+
+              if (_selectedRole == 'orang_tua') ...[
+                Text(
+                  'Anak yang dapat dilihat',
+                  style: TextStyle(
+                    color: warnaTeksUtama,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_isLoadingSiswa) const LinearProgressIndicator(),
+                if (_siswaError != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _siswaError!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _isLoadingSiswa ? null : _muatSiswa,
+                        child: const Text('Muat ulang'),
+                      ),
+                    ],
+                  ),
+                ..._siswa.map((student) {
+                  final id = int.tryParse(student['id']?.toString() ?? '');
+                  if (id == null) return const SizedBox.shrink();
+                  final className = student['kelas_nama']?.toString() ?? '';
+                  return CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _selectedStudentIds.contains(id),
+                    title: Text(student['nama_lengkap']?.toString() ?? '-'),
+                    subtitle: className.isEmpty ? null : Text(className),
+                    onChanged: (selected) {
+                      setState(() {
+                        if (selected == true) {
+                          _selectedStudentIds.add(id);
+                        } else {
+                          _selectedStudentIds.remove(id);
+                        }
+                      });
+                    },
+                  );
+                }),
+                const SizedBox(height: 12),
+              ],
+
+              if (_selectedRole == 'petugas_keuangan') ...[
+                Text(
+                  'Jenis pembayaran yang boleh dikelola',
+                  style: TextStyle(
+                    color: warnaTeksUtama,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: _paymentCategories.entries
+                      .map(
+                        (category) => FilterChip(
+                          label: Text(category.value),
+                          selected: _selectedPaymentCategories.contains(
+                            category.key,
+                          ),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedPaymentCategories.add(category.key);
+                              } else {
+                                _selectedPaymentCategories.remove(category.key);
+                              }
+                            });
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               if (_selectedRole == 'siswa' ||
                   (_selectedRole == 'guru' &&

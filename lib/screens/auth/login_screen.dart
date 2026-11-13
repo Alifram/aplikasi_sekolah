@@ -75,6 +75,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color warnaTeksUtama = isDark ? Colors.white : Colors.black87;
+    final Color warnaTeksSub = isDark ? Colors.white70 : Colors.grey;
+    final Color warnaIkon = isDark ? Colors.amber.shade300 : AppColors.primary;
+    final Color warnaAksen = isDark ? Colors.green.shade400 : AppColors.primary;
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -84,32 +90,54 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Center(
                 child: Container(
-                  height: 100,
-                  width: 100,
+                  height: 112,
+                  width: 112,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1), // Integrasi warna tema
+                    color: Colors.white,
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.amber.shade300
+                          : AppColors.primary.withValues(alpha: 0.15),
+                      width: isDark ? 2 : 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDark
+                            ? Colors.black.withValues(alpha: 0.3)
+                            : AppColors.primary.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.school,
-                    size: 50,
-                    color: AppColors.primary, // Integrasi warna tema
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Image.asset(
+                      'assets/logo_mim.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.school,
+                        size: 56,
+                        color: warnaIkon,
+                      ),
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 40),
 
-              const Text(
+              Text(
                 'Portal Academic',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: warnaTeksUtama,
                 ),
               ),
-              const Text(
+              Text(
                 'Silakan masuk ke akun MIM Pasir Lor Anda',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+                style: TextStyle(fontSize: 14, color: warnaTeksSub),
               ),
               const SizedBox(height: 35),
 
@@ -117,14 +145,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _identifierController,
                 decoration: InputDecoration(
                   labelText: 'Nomor Induk (NIS/NIP) atau Email',
-                  prefixIcon: const Icon(Icons.person_outline),
+                  prefixIcon: Icon(Icons.person_outline, color: warnaIkon),
+                  labelStyle: TextStyle(color: warnaTeksSub),
+                  hintStyle: TextStyle(color: warnaTeksSub),
+                  filled: isDark,
+                  fillColor: isDark ? const Color(0xFF202C33) : null,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary, // Integrasi warna tema
+                    borderSide: BorderSide(
+                      color: warnaAksen,
                       width: 2,
                     ),
                   ),
@@ -137,12 +169,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  prefixIcon: const Icon(Icons.lock_outline),
+                  prefixIcon: Icon(Icons.lock_outline, color: warnaIkon),
+                  labelStyle: TextStyle(color: warnaTeksSub),
+                  filled: isDark,
+                  fillColor: isDark ? const Color(0xFF202C33) : null,
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword
                           ? Icons.visibility_off
                           : Icons.visibility,
+                      color: warnaIkon,
                     ),
                     onPressed: () {
                       setState(() {
@@ -155,8 +191,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary, // Integrasi warna tema global
+                    borderSide: BorderSide(
+                      color: warnaAksen,
                       width: 2,
                     ),
                   ),
@@ -170,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 52,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary, // Integrasi warna tema global
+                    backgroundColor: warnaAksen,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

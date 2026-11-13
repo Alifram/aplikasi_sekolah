@@ -36,21 +36,55 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'MIM Pasir Lor',
       debugShowCheckedModeBanner: false,
-      
-      theme: _isDarkModeActive 
+
+      theme: _isDarkModeActive
           ? ThemeData.dark(useMaterial3: true).copyWith(
+              colorScheme: const ColorScheme.dark().copyWith(
+                primary: Color(0xFFFFD166),
+                onPrimary: Color(0xFF172027),
+                surface: Color(0xFF111B21),
+                onSurface: Color(0xFFE8E5DE),
+                onSurfaceVariant: Color(0xFFC5C2BA),
+              ),
               scaffoldBackgroundColor: const Color(0xFF0B141A),
               cardColor: const Color(0xFF111B21),
               dividerColor: Colors.grey.shade800,
-            ) 
+              textTheme: ThemeData.dark(useMaterial3: true).textTheme.apply(
+                bodyColor: const Color(0xFFE8E5DE),
+                displayColor: const Color(0xFFE8E5DE),
+              ),
+              iconTheme: const IconThemeData(color: Color(0xFFD8D5CD)),
+              snackBarTheme: const SnackBarThemeData(
+                contentTextStyle: TextStyle(
+                  color: Color(0xFFE8E5DE),
+                  fontSize: 14,
+                ),
+              ),
+              dialogTheme: const DialogThemeData(
+                backgroundColor: Color(0xFF1C2D35),
+                titleTextStyle: TextStyle(
+                  color: Color(0xFFE8E5DE),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+                contentTextStyle: TextStyle(
+                  color: Color(0xFFC5C2BA),
+                  fontSize: 16,
+                ),
+              ),
+              inputDecorationTheme: const InputDecorationTheme(
+                labelStyle: TextStyle(color: Color(0xFFC5C2BA)),
+                hintStyle: TextStyle(color: Color(0xFFAAA79F)),
+              ),
+            )
           : ThemeData(
               primarySwatch: Colors.green,
               scaffoldBackgroundColor: Colors.white,
               useMaterial3: true,
             ),
-            
+
       initialRoute: '/',
-      
+
       onGenerateRoute: (settings) {
         if (settings.name == '/dashboard') {
           final args = settings.arguments as Map<String, dynamic>;
@@ -59,7 +93,7 @@ class _MyAppState extends State<MyApp> {
               role: args['role'] ?? 'siswa',
               namaUser: args['nama_lengkap'] ?? 'User',
               extraData: args,
-              statusTemaGelap: _isDarkModeActive, 
+              statusTemaGelap: _isDarkModeActive,
               padaPerubahanTema: (nilaiBaru) {
                 setState(() {
                   _isDarkModeActive = nilaiBaru;
@@ -72,9 +106,11 @@ class _MyAppState extends State<MyApp> {
           return MaterialPageRoute(builder: (context) => const LoginScreen());
         }
         if (settings.name == '/onboarding') {
-          return MaterialPageRoute(builder: (context) => const OnboardingScreen());
+          return MaterialPageRoute(
+            builder: (context) => const OnboardingScreen(),
+          );
         }
-        
+
         return MaterialPageRoute(builder: (context) => const SplashScreen());
       },
     );

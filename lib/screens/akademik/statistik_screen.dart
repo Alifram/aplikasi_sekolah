@@ -20,10 +20,23 @@ class StatistikScreen extends StatefulWidget {
 }
 
 class _StatistikScreenState extends State<StatistikScreen> {
-  String _angkatanTerpilih = '2026';
+  String _angkatanTerpilih = DateTime.now().year.toString();
   bool _isLoading = false;
 
   Map<String, dynamic> _dataStatistik = {};
+
+  List<String> get _opsiAngkatan {
+    final currentYear = DateTime.now().year;
+    final selectedYear = int.tryParse(_angkatanTerpilih) ?? currentYear;
+    final firstYear = selectedYear < 2023 ? selectedYear : 2023;
+    final lastYear = selectedYear > currentYear + 5
+        ? selectedYear
+        : currentYear + 5;
+
+    return [
+      for (var year = firstYear; year <= lastYear; year++) year.toString(),
+    ];
+  }
 
   @override
   void initState() {
@@ -98,7 +111,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
                             color: warnaTeksUtama,
                             fontWeight: FontWeight.bold,
                           ),
-                          items: ['2024', '2025', '2026', '2027']
+                          items: _opsiAngkatan
                               .map(
                                 (t) =>
                                     DropdownMenuItem(value: t, child: Text(t)),
@@ -169,6 +182,13 @@ class _StatistikScreenState extends State<StatistikScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
+          if (!isAdmin) {
+            showPantauDataAccessDeniedDialog(
+              context,
+              isDark: widget.statusTemaGelap,
+            );
+            return;
+          }
           Navigator.push(
             context,
             MaterialPageRoute(

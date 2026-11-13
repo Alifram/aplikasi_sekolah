@@ -36,6 +36,46 @@ class AdminService {
     }
   }
 
+  static Future<Map<String, dynamic>> konfigurasiAkunPembayaran({
+    required int userId,
+    required List<int> studentUserIds,
+    required List<String> categoryCodes,
+  }) async {
+    try {
+      final response = await _supabase.rpc(
+        'admin_configure_payment_account',
+        params: {
+          'p_user_id': userId,
+          'p_student_user_ids': studentUserIds,
+          'p_category_codes': categoryCodes,
+        },
+      );
+      if (response is Map && response['status'] == 'success') {
+        return Map<String, dynamic>.from(response);
+      }
+      return {
+        'status': 'error',
+        'message': 'Konfigurasi akses pembayaran belum berhasil.',
+      };
+    } on PostgrestException catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.fromPostgrest(
+          error,
+          fallback: 'Konfigurasi akses pembayaran belum berhasil.',
+        ),
+      };
+    } catch (error) {
+      return {
+        'status': 'error',
+        'message': AppErrorMessage.from(
+          error,
+          fallback: 'Konfigurasi akses pembayaran belum berhasil.',
+        ),
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> ambilDataNilai(
     String userId,
     String role,
@@ -92,10 +132,7 @@ class AdminService {
   }
 
   static Future<Map<String, dynamic>> hapusAkunUser(String idUser) =>
-      _kelolaAkun({
-        'action': 'delete',
-        'user_id': int.tryParse(idUser),
-      });
+      _kelolaAkun({'action': 'delete', 'user_id': int.tryParse(idUser)});
 
   static Future<Map<String, dynamic>> ubahStatusAksesAkun(
     String idUser,
@@ -123,7 +160,8 @@ class AdminService {
         return {
           ...result,
           'status': 'error',
-          'message': result['message']?.toString() ??
+          'message':
+              result['message']?.toString() ??
               'Perubahan akun belum berhasil. Silakan coba lagi.',
         };
       }
@@ -133,13 +171,11 @@ class AdminService {
       };
     } on FunctionException catch (error) {
       final details = error.details;
-      final message = details is Map
-          ? details['message']?.toString()
-          : null;
+      final message = details is Map ? details['message']?.toString() : null;
       return {
         'status': 'error',
-        'message': message ??
-            'Layanan akun belum dapat dihubungi. Silakan coba lagi.',
+        'message':
+            message ?? 'Layanan akun belum dapat dihubungi. Silakan coba lagi.',
       };
     } catch (error) {
       return {
@@ -159,10 +195,7 @@ class AdminService {
     try {
       final response = await _supabase.rpc(
         'admin_move_user_class',
-        params: {
-          'p_user_id': int.tryParse(userId),
-          'p_kelas_id': kelasId,
-        },
+        params: {'p_user_id': int.tryParse(userId), 'p_kelas_id': kelasId},
       );
       if (response is Map) return Map<String, dynamic>.from(response);
       return {

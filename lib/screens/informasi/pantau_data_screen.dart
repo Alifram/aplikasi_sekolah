@@ -3,6 +3,72 @@ import '../user/detail_user_screen.dart';
 import 'package:aplikasi_sekolah/core/constants/app_colors.dart';
 import 'package:aplikasi_sekolah/core/services/admin_service.dart';
 
+Future<void> showPantauDataAccessDeniedDialog(
+  BuildContext context, {
+  required bool isDark,
+}) {
+  final Color backgroundColor = isDark
+      ? const Color(0xFF1C2D35)
+      : Colors.white;
+  final Color primaryTextColor = isDark ? Colors.white : Colors.black87;
+  final Color secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+
+  return showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: backgroundColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      icon: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.lock_outline_rounded,
+          color: AppColors.primary,
+          size: 32,
+        ),
+      ),
+      title: Text(
+        'Akses terbatas',
+        style: TextStyle(
+          color: primaryTextColor,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: Text(
+        'Menu Pantau Semua Data hanya dapat dibuka oleh Admin. '
+        'Anda tetap dapat melihat statistik kelas yang tersedia di halaman ini.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: secondaryTextColor, height: 1.45),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Mengerti',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class PantauDataScreen extends StatefulWidget {
   final String? filterKelasOtomatis;
   final String? filterAngkatanOtomatis;
@@ -26,15 +92,32 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
   String _pesanError = '';
 
   String _searchQuery = '';
-  String _selectedFilterRole = 'semua'; 
-  
+  String _selectedFilterRole = 'semua';
+
   String _selectedFilterAngkatan = 'Semua Angkatan';
-  final List<String> _opsiFilterAngkatan = ['Semua Angkatan', '2023', '2024', '2025', '2026'];
+
+  List<String> get _opsiFilterAngkatan {
+    final years = <int>{};
+    for (final user in _allUsers) {
+      if (user['role'] != 'siswa') continue;
+      final year = int.tryParse(user['tahun_angkatan']?.toString() ?? '');
+      if (year != null && year > 0) years.add(year);
+    }
+
+    final selectedYear = int.tryParse(_selectedFilterAngkatan);
+    if (selectedYear != null && selectedYear > 0) years.add(selectedYear);
+
+    final sortedYears = years.toList()..sort((a, b) => b.compareTo(a));
+    return [
+      'Semua Angkatan',
+      ...sortedYears.map((year) => year.toString()),
+    ];
+  }
 
   @override
   void initState() {
     super.initState();
-    if (widget.filterAngkatanOtomatis != null) {
+    if (int.tryParse(widget.filterAngkatanOtomatis ?? '') != null) {
       _selectedFilterAngkatan = widget.filterAngkatanOtomatis!;
     }
     _panggilDataPengguna();
@@ -59,36 +142,60 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
   void _jalankanFilterPencarian() {
     setState(() {
       _filteredUsers = _allUsers.where((user) {
-        final nama = user['nama_lengkap'].toString().toLowerCase().trim();
-        final nomorInduk = user['nomor_induk'].toString().toLowerCase().trim();
-        final role = user['role'].toString().toLowerCase().trim();
-        final kelasUser = user['kelas_nama']?.toString().toLowerCase().trim() ?? '';
+        final nama = (user['nama_lengkap'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final nomorInduk = (user['nomor_induk'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final role = user['role']?.toString().toLowerCase().trim() ?? '';
+        final jenisGuru = user['jenis_guru']?.toString().toLowerCase().trim();
+        final kelasUser =
+            user['kelas_nama']?.toString().toLowerCase().trim() ?? '';
         final angkatanUser = user['tahun_angkatan']?.toString().trim() ?? '';
-        final cocokKeyword = nama.contains(_searchQuery.toLowerCase().trim()) ||
-            nomorInduk.contains(_searchQuery.toLowerCase().trim());
-        bool cocokRole = (_selectedFilterRole == 'semua') ? true : (role == _selectedFilterRole);
-        bool cocokAngkatan = true;
-        if (_selectedFilterAngkatan != 'Semua Angkatan') {
-          if (role == 'siswa') {
-            cocokAngkatan = (angkatanUser == _selectedFilterAngkatan.trim());
-          } else {
-            cocokAngkatan = true;
-          }
-        }
-        bool cocokKelasOtomatis = true;
+        final kataKunci = _searchQuery.toLowerCase().trim();
+        final cocokKeyword =
+            nama.contains(kataKunci) || nomorInduk.contains(kataKunci);
+        final cocokRole = switch (_selectedFilterRole) {
+          'guru_kelas' => role == 'guru' && jenisGuru == 'guru_kelas',
+          'guru_mapel' => role == 'guru' && jenisGuru == 'guru_mapel',
+          'siswa' => role == 'siswa',
+          _ =>
+            (role == 'guru' &&
+                (jenisGuru == 'guru_kelas' || jenisGuru == 'guru_mapel')) ||
+            role == 'siswa',
+        };
+        final cocokAngkatan =
+            role != 'siswa' ||
+            _selectedFilterAngkatan == 'Semua Angkatan' ||
+            angkatanUser == _selectedFilterAngkatan;
+        var cocokKelasOtomatis = true;
         if (widget.filterKelasOtomatis != null) {
-          final String targetKelas = widget.filterKelasOtomatis!.toLowerCase().trim();
-          
-          if (role == 'admin') {
-            cocokKelasOtomatis = false;
-          } else if (role == 'guru') {
-            cocokKelasOtomatis = kelasUser.contains(targetKelas);
+          final targetKelas =
+              widget.filterKelasOtomatis!.toLowerCase().trim();
+          if (role == 'guru' && jenisGuru == 'guru_kelas') {
+            cocokKelasOtomatis = kelasUser == targetKelas;
+          } else if (role == 'guru' && jenisGuru == 'guru_mapel') {
+            final kelasMapel = user['kelas_mapel_nama'];
+            cocokKelasOtomatis =
+                kelasMapel is List &&
+                kelasMapel.any(
+                  (kelas) =>
+                      kelas.toString().toLowerCase().trim() == targetKelas,
+                );
           } else if (role == 'siswa') {
-            cocokKelasOtomatis = (kelasUser == targetKelas);
+            cocokKelasOtomatis = kelasUser == targetKelas;
+          } else {
+            cocokKelasOtomatis = false;
           }
         }
 
-        return cocokKeyword && cocokRole && cocokAngkatan && cocokKelasOtomatis;
+        return cocokKeyword &&
+            cocokRole &&
+            cocokAngkatan &&
+            cocokKelasOtomatis;
       }).toList();
     });
   }
@@ -152,6 +259,8 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
   Color _getRoleColor(String role) {
     if (role == 'admin') return Colors.purple;
     if (role == 'guru') return Colors.blue.shade700;
+    if (role == 'orang_tua') return Colors.teal.shade700;
+    if (role == 'petugas_keuangan') return Colors.deepOrange.shade700;
     return Colors.green.shade700;
   }
 
@@ -215,9 +324,8 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
                 runSpacing: 4,
                 children: [
                   _buildFilterChip('semua', 'Semua', isDark),
-                  const SizedBox(width: 6),
-                  _buildFilterChip('guru', 'Guru', isDark),
-                  const SizedBox(width: 6),
+                  _buildFilterChip('guru_kelas', 'Guru Kelas', isDark),
+                  _buildFilterChip('guru_mapel', 'Guru Mapel', isDark),
                   _buildFilterChip('siswa', 'Siswa', isDark),
                 ],
               ),
@@ -315,6 +423,10 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
                               itemCount: _filteredUsers.length,
                               itemBuilder: (context, index) {
                                 final user = _filteredUsers[index];
+                                final kelasMapel = user['kelas_mapel_nama'];
+                                final daftarKelasMapel = kelasMapel is List
+                                    ? kelasMapel.join(', ')
+                                    : '';
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 12),
                                   elevation: 1,
@@ -369,6 +481,13 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
                                                     'Mengajar: ${user['kelas_nama']}',
                                                     style: const TextStyle(color: Colors.deepOrange, fontSize: 13, fontWeight: FontWeight.w500),
                                                   ),
+                                                if (user['role'] == 'guru' &&
+                                                    user['jenis_guru'] == 'guru_mapel' &&
+                                                    daftarKelasMapel.isNotEmpty)
+                                                  Text(
+                                                    'Mengajar: $daftarKelasMapel',
+                                                    style: const TextStyle(color: Colors.deepOrange, fontSize: 13, fontWeight: FontWeight.w500),
+                                                  ),
                                               ],
                                             ),
                                           ),
@@ -393,9 +512,12 @@ class _PantauDataScreenState extends State<PantauDataScreen> {
                                                     ),
                                                   ),
                                                   child: Text(
-                                                    user['role']
-                                                        .toString()
-                                                        .toUpperCase(),
+                                                    user['role'] == 'siswa'
+                                                        ? 'SISWA'
+                                                        : user['jenis_guru'] ==
+                                                              'guru_kelas'
+                                                        ? 'GURU KELAS'
+                                                        : 'GURU MAPEL',
                                                     style: TextStyle(
                                                       color: _getRoleColor(
                                                         user['role'],

@@ -244,6 +244,7 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -263,23 +264,27 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
+          ? Center(
+              child: CircularProgressIndicator(
+                color: isDark ? Colors.amber.shade300 : AppColors.primary,
+              ),
             )
           : _pesanError.isNotEmpty
           ? Center(
               child: Text(
                 _pesanError,
-                style: const TextStyle(color: Colors.red),
+                style: TextStyle(
+                  color: isDark ? Colors.red.shade300 : Colors.red,
+                ),
               ),
             )
           : _listRapor.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'Data nilai rapor Anda belum dimasukkan oleh Guru Kelas.',
                 style: TextStyle(
                   fontStyle: FontStyle.italic,
-                  color: Colors.grey,
+                  color: isDark ? Colors.white70 : Colors.grey,
                 ),
               ),
             )
@@ -299,22 +304,34 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(color: Colors.grey.shade200),
+                    side: BorderSide(
+                      color: isDark
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade200,
+                    ),
                   ),
                   child: ExpansionTile(
                     leading: CircleAvatar(
                       backgroundColor: rataHarian == null
-                          ? Colors.grey.shade100
+                          ? (isDark
+                                ? const Color(0xFF34434B)
+                                : Colors.grey.shade100)
                           : rataHarianLulus
-                          ? Colors.green.shade50
-                          : Colors.red.shade50,
+                          ? (isDark
+                                ? Colors.green.shade900
+                                : Colors.green.shade50)
+                          : (isDark ? Colors.red.shade900 : Colors.red.shade50),
                       child: Icon(
                         Icons.menu_book,
                         color: rataHarian == null
-                            ? Colors.grey
+                            ? (isDark ? Colors.white70 : Colors.grey)
                             : rataHarianLulus
-                            ? Colors.green.shade800
-                            : Colors.red.shade800,
+                            ? (isDark
+                                  ? Colors.lightGreen.shade300
+                                  : Colors.green.shade800)
+                            : (isDark
+                                  ? Colors.red.shade300
+                                  : Colors.red.shade800),
                       ),
                     ),
                     title: Text(
@@ -346,10 +363,14 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: rataHarian == null
-                              ? Colors.grey
+                              ? (isDark ? Colors.white70 : Colors.grey)
                               : rataHarianLulus
-                              ? Colors.green.shade800
-                              : Colors.red.shade800,
+                              ? (isDark
+                                    ? Colors.lightGreen.shade300
+                                    : Colors.green.shade800)
+                              : (isDark
+                                    ? Colors.red.shade300
+                                    : Colors.red.shade800),
                         ),
                       ),
                     ),
@@ -382,9 +403,11 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
                                 alignment: Alignment.centerLeft,
                                 child: Text(
                                   'Pesan Guru: "${nilai['keterangan']}"',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontStyle: FontStyle.italic,
-                                    color: Colors.grey,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.grey,
                                     fontSize: 13,
                                   ),
                                 ),
@@ -402,9 +425,16 @@ class _RaporSiswaScreenState extends State<RaporSiswaScreen> {
   }
 
   Widget _buildItemNilai(String label, String skor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(
+          label,
+          style: TextStyle(
+            color: isDark ? Colors.white70 : Colors.grey,
+            fontSize: 12,
+          ),
+        ),
         const SizedBox(height: 4),
         Text(
           skor,

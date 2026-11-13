@@ -507,6 +507,13 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
     final String userId = widget.userData['id'].toString();
     final String role = widget.userData['role'];
 
+    if (role == 'admin' ||
+        role == 'orang_tua' ||
+        role == 'petugas_keuangan') {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
     final res = await AdminService.ambilDataNilai(userId, role);
     if (mounted) {
       setState(() {
@@ -626,7 +633,13 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
                                 child: Text(
                                   user['role'] == 'guru'
                                       ? 'Mengajar: $_currentKelas'
-                                      : 'Tingkat Saat Ini: $_currentKelas',
+                                      : user['role'] == 'siswa'
+                                      ? 'Tingkat Saat Ini: $_currentKelas'
+                                      : user['role'] == 'orang_tua'
+                                      ? 'Akun Wali Murid'
+                                      : user['role'] == 'petugas_keuangan'
+                                      ? 'Petugas Keuangan'
+                                      : 'Administrator',
                                   style: const TextStyle(
                                     color: Colors.deepOrange,
                                     fontWeight: FontWeight.bold,
@@ -670,10 +683,12 @@ class _DetailUserScreenState extends State<DetailUserScreen> {
             ),
             const SizedBox(height: 30),
             // Logika Bagian Pengisian Rapor Angka
-            if (user['role'] == 'admin') ...[
+            if (user['role'] == 'admin' ||
+                user['role'] == 'orang_tua' ||
+                user['role'] == 'petugas_keuangan') ...[
               const Center(
                 child: Text(
-                  'Akun tingkat administrator tidak memiliki log data nilai akademik.',
+                  'Akun ini tidak memiliki log nilai akademik.',
                   style: TextStyle(fontStyle: FontStyle.italic),
                 ),
               ),

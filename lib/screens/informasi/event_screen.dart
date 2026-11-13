@@ -286,12 +286,14 @@ class _EventScreenState extends State<EventScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Publikasi Berita & Kegiatan',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.amber.shade300
+                            : AppColors.primary,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -475,13 +477,16 @@ class _EventScreenState extends State<EventScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     bool bolehTambahAcara =
         widget.roleUser == 'admin' || widget.roleUser == 'guru';
 
     return Scaffold(
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
+          ? Center(
+              child: CircularProgressIndicator(
+                color: isDark ? Colors.amber.shade300 : AppColors.primary,
+              ),
             )
           : _eventError != null
           ? Center(
@@ -574,16 +579,20 @@ class _EventScreenState extends State<EventScreen> {
                                     const SizedBox(width: 10),
                                     Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.calendar_month,
                                           size: 14,
-                                          color: Colors.grey,
+                                          color: isDark
+                                              ? Colors.white70
+                                              : Colors.grey,
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
                                           item['tanggal_acara'] ?? '-',
-                                          style: const TextStyle(
-                                            color: Colors.grey,
+                                          style: TextStyle(
+                                            color: isDark
+                                                ? Colors.white70
+                                                : Colors.grey,
                                             fontSize: 12,
                                           ),
                                         ),
@@ -615,8 +624,8 @@ class _EventScreenState extends State<EventScreen> {
                             const SizedBox(height: 6),
                             Text(
                               item['deskripsi'] ?? '-',
-                              style: const TextStyle(
-                                color: Colors.black87,
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black87,
                                 height: 1.4,
                               ),
                             ),
@@ -629,23 +638,29 @@ class _EventScreenState extends State<EventScreen> {
                                     'Oleh: ${item['dibuat_oleh'] ?? '-'}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.grey,
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.white70
+                                          : Colors.grey,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ),
                                 TextButton.icon(
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.mode_comment_outlined,
                                     size: 18,
-                                    color: AppColors.primary,
+                                    color: isDark
+                                        ? Colors.amber.shade300
+                                        : AppColors.primary,
                                   ),
-                                  label: const Text(
+                                  label: Text(
                                     'Diskusi / Komentar',
                                     style: TextStyle(
-                                      color: AppColors.primary,
+                                      color: isDark
+                                          ? Colors.amber.shade300
+                                          : AppColors.primary,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13,
                                     ),
@@ -763,6 +778,7 @@ class _KolomKomentarSheetState extends State<_KolomKomentarSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenHeight = MediaQuery.sizeOf(context).height;
     final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
     final availableHeight = screenHeight - keyboardHeight - 40;
@@ -790,9 +806,11 @@ class _KolomKomentarSheetState extends State<_KolomKomentarSheet> {
               const SizedBox(height: 12),
               Flexible(
                 child: _isLoading
-                    ? const Center(
+                    ? Center(
                         child: CircularProgressIndicator(
-                          color: AppColors.primary,
+                          color: isDark
+                              ? Colors.amber.shade300
+                              : AppColors.primary,
                         ),
                       )
                     : _errorMessage != null
@@ -810,11 +828,14 @@ class _KolomKomentarSheetState extends State<_KolomKomentarSheet> {
                         ),
                       )
                     : _komentar.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           'Belum ada opini. Jadilah yang pertama berkomentar!',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white70 : Colors.grey,
+                          ),
                         ),
                       )
                     : ListView.builder(
@@ -844,8 +865,8 @@ class _KolomKomentarSheetState extends State<_KolomKomentarSheet> {
                             ),
                             subtitle: Text(
                               item['isi_komentar']?.toString() ?? '',
-                              style: const TextStyle(
-                                color: Colors.black87,
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black87,
                                 fontSize: 13,
                               ),
                             ),
@@ -876,7 +897,12 @@ class _KolomKomentarSheetState extends State<_KolomKomentarSheet> {
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.send, color: AppColors.primary),
+                        : Icon(
+                            Icons.send,
+                            color: isDark
+                                ? Colors.amber.shade300
+                                : AppColors.primary,
+                          ),
                     onPressed: _isSubmitting ? null : _kirimKomentar,
                   ),
                 ],
